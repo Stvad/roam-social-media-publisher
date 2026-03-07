@@ -1,6 +1,6 @@
 import type { PostContent, PostResult } from "../types";
 import type { ExtensionAPI } from "../types";
-import { getCorsProxyUrl, resolveBlockText } from "../utils";
+import { getCorsProxyUrl, processBlockText } from "../utils";
 
 const BLUESKY_CHAR_LIMIT = 300;
 const BSKY_API_BASE = "https://bsky.social/xrpc";
@@ -89,7 +89,7 @@ export function validateBlueskyThread(blocks: { text: string; uid: string }[]): 
   const counts: { uid: string; count: number }[] = [];
 
   for (const block of blocks) {
-    const text = resolveBlockText(block.text);
+    const { text } = processBlockText(block.text);
     // Bluesky counts graphemes
     const len = [...text].length;
     counts.push({ uid: block.uid, count: len });
@@ -127,7 +127,7 @@ export async function postToBluesky(
   let firstPostUri: string | undefined;
 
   for (const block of content.blocks) {
-    const text = resolveBlockText(block.text);
+    const { text } = processBlockText(block.text);
     const facets = detectFacets(text);
 
     const record: Record<string, unknown> = {

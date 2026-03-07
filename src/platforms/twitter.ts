@@ -1,6 +1,6 @@
 import type { PostContent, PostResult } from "../types";
 import type { ExtensionAPI } from "../types";
-import { getCorsProxyUrl, resolveBlockText } from "../utils";
+import { getCorsProxyUrl, processBlockText } from "../utils";
 import OAuth from "oauth-1.0a";
 import CryptoJS from "crypto-js";
 
@@ -55,7 +55,7 @@ export function validateTwitterThread(blocks: { text: string; uid: string }[]): 
   const counts: { uid: string; count: number }[] = [];
 
   for (const block of blocks) {
-    const text = resolveBlockText(block.text);
+    const { text } = processBlockText(block.text);
     const len = text.length;
     counts.push({ uid: block.uid, count: len });
 
@@ -83,7 +83,7 @@ export async function postToTwitter(
   let firstTweetUrl: string | undefined;
 
   for (const block of content.blocks) {
-    const text = resolveBlockText(block.text);
+    const { text } = processBlockText(block.text);
     const url = `${TWITTER_API_BASE}/tweets`;
     const body: Record<string, unknown> = { text };
 

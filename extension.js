@@ -7,22 +7,54 @@ function getCorsProxyUrl() {
   var _a2, _b;
   return ((_b = (_a2 = window.roamAlphaAPI) == null ? void 0 : _a2.constants) == null ? void 0 : _b.corsAnywhereProxyUrl) || "";
 }
-function resolveBlockText(text) {
-  let resolved = text;
-  const blockRefRegex = /\(\(([a-zA-Z0-9_-]{9,12})\)\)/g;
-  resolved = resolved.replace(blockRefRegex, (_, uid) => {
+const BLOCK_REF_REGEX$1 = /\(\(([\w\d-]{9,10})\)\)/g;
+const PAGE_REF_REGEX$1 = /\[\[([^\]]+)\]\]/g;
+const HASHTAG_PAGE_REF_REGEX$1 = /#\[\[([^\]]+)\]\]/g;
+const IMAGE_REGEX$1 = /!\[[^\]]*\]\(([^\s)]*)\)/g;
+const ALIAS_REGEX$1 = /\[([^\]]*)\]\(([^)]+)\)/g;
+const BUTTON_REGEX$1 = /\{\{[^}]*\}\}/g;
+const BOLD_REGEX = /\*\*(.+?)\*\*/g;
+const ITALIC_REGEX = /__(.+?)__/g;
+const HIGHLIGHT_REGEX = /\^\^(.+?)\^\^/g;
+const STRIKETHROUGH_REGEX = /~~(.+?)~~/g;
+const INLINE_CODE_REGEX = /`([^`]+)`/g;
+function processBlockText(raw) {
+  if (!raw) return { text: "", mediaUrls: [] };
+  let text = raw;
+  const mediaUrls = [];
+  text = text.replace(IMAGE_REGEX$1, (_, url) => {
+    mediaUrls.push(url);
+    return "";
+  });
+  text = text.replace(BLOCK_REF_REGEX$1, (_, uid) => {
     try {
-      const result = window.roamAlphaAPI.data.pull("[:block/string]", [":block/uid", uid]);
-      return (result == null ? void 0 : result[":block/string"]) || `((${uid}))`;
+      const result = window.roamAlphaAPI.data.pull(
+        "[:block/string]",
+        [":block/uid", uid]
+      );
+      return (result == null ? void 0 : result[":block/string"]) || "";
     } catch {
-      return `((${uid}))`;
+      return "";
     }
   });
-  resolved = resolved.replace(/\[\[([^\]]+)\]\]/g, "$1");
-  resolved = resolved.replace(/#\[\[([^\]]+)\]\]/g, "$1");
-  resolved = resolved.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "$2");
-  resolved = resolved.replace(/\{\{[^}]*\}\}/g, "").trim();
-  return resolved;
+  text = text.replace(ALIAS_REGEX$1, "$2");
+  text = text.replace(HASHTAG_PAGE_REF_REGEX$1, (_, pageName) => {
+    return `#${pageName.replace(/\s+/g, "")}`;
+  });
+  text = text.replace(PAGE_REF_REGEX$1, (_, pageName) => {
+    return `#${pageName.replace(/\s+/g, "")}`;
+  });
+  text = text.replace(BOLD_REGEX, "$1");
+  text = text.replace(ITALIC_REGEX, "$1");
+  text = text.replace(HIGHLIGHT_REGEX, "$1");
+  text = text.replace(STRIKETHROUGH_REGEX, "$1");
+  text = text.replace(INLINE_CODE_REGEX, "$1");
+  text = text.replace(BUTTON_REGEX$1, "");
+  text = text.replace(/  +/g, " ").trim();
+  return { text, mediaUrls };
+}
+function resolveBlockText(raw) {
+  return processBlockText(raw).text;
 }
 function getChildBlocks(blockUid) {
   try {
@@ -279,7 +311,7 @@ function validateTwitterThread(blocks) {
   const errors = [];
   const counts = [];
   for (const block of blocks) {
-    const text = resolveBlockText(block.text);
+    const { text } = processBlockText(block.text);
     const len = text.length;
     counts.push({ uid: block.uid, count: len });
     if (len === 0) {
@@ -300,7 +332,7 @@ async function postToTwitter(content, extensionAPI) {
   let inReplyToId;
   let firstTweetUrl;
   for (const block of content.blocks) {
-    const text = resolveBlockText(block.text);
+    const { text } = processBlockText(block.text);
     const url = `${TWITTER_API_BASE}/tweets`;
     const body = { text };
     if (inReplyToId) {
@@ -392,7 +424,7 @@ function validateBlueskyThread(blocks) {
   const errors = [];
   const counts = [];
   for (const block of blocks) {
-    const text = resolveBlockText(block.text);
+    const { text } = processBlockText(block.text);
     const len = [...text].length;
     counts.push({ uid: block.uid, count: len });
     if (len === 0) {
@@ -420,7 +452,7 @@ async function postToBluesky(content, extensionAPI) {
   let parentRef;
   let firstPostUri;
   for (const block of content.blocks) {
-    const text = resolveBlockText(block.text);
+    const { text } = processBlockText(block.text);
     const facets = detectFacets(text);
     const record = {
       $type: "app.bsky.feed.post",
@@ -472,19 +504,50 @@ async function postToBluesky(content, extensionAPI) {
 }
 const BLUESKY_CHAR_MAX = BLUESKY_CHAR_LIMIT;
 const LW_GRAPHQL_URL = "https://www.lesswrong.com/graphql";
+const BLOCK_REF_REGEX = /\(\(([\w\d-]{9,10})\)\)/g;
+const PAGE_REF_REGEX = /\[\[([^\]]+)\]\]/g;
+const HASHTAG_PAGE_REF_REGEX = /#\[\[([^\]]+)\]\]/g;
+const IMAGE_REGEX = /!\[([^\]]*)\]\(([^\s)]*)\)/g;
+const ALIAS_REGEX = /\[([^\]]*)\]\(([^)]+)\)/g;
+const BUTTON_REGEX = /\{\{[^}]*\}\}/g;
 function getCredentials(extensionAPI) {
   const loginToken = extensionAPI.settings.get("lesswrong-login-token");
   if (!loginToken) return null;
   return { loginToken };
 }
-function blocksToHtml(blocks) {
-  const paragraphs = blocks.map((b) => {
-    const text = resolveBlockText(b.text);
-    const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    let html = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>").replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-    return `<p>${html}</p>`;
+function blockToHtml(raw) {
+  if (!raw) return "";
+  let text = raw;
+  text = text.replace(IMAGE_REGEX, "");
+  text = text.replace(BLOCK_REF_REGEX, (_, uid) => {
+    try {
+      const result = window.roamAlphaAPI.data.pull(
+        "[:block/string]",
+        [":block/uid", uid]
+      );
+      return (result == null ? void 0 : result[":block/string"]) || "";
+    } catch {
+      return "";
+    }
   });
-  return paragraphs.join("\n");
+  text = text.replace(BUTTON_REGEX, "");
+  text = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  text = text.replace(ALIAS_REGEX, '<a href="$2">$1</a>');
+  text = text.replace(HASHTAG_PAGE_REF_REGEX, (_, pageName) => pageName);
+  text = text.replace(PAGE_REF_REGEX, (_, pageName) => pageName);
+  text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  text = text.replace(/__(.+?)__/g, "<em>$1</em>");
+  text = text.replace(/\^\^(.+?)\^\^/g, "<mark>$1</mark>");
+  text = text.replace(/~~(.+?)~~/g, "<del>$1</del>");
+  text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
+  text = text.replace(
+    new RegExp('(?<!href=")(https?:\\/\\/[^\\s<]+)', "g"),
+    '<a href="$1">$1</a>'
+  );
+  return text.trim();
+}
+function blocksToHtml(blocks) {
+  return blocks.map((b) => `<p>${blockToHtml(b.text)}</p>`).join("\n");
 }
 function isLessWrongConfigured(extensionAPI) {
   return getCredentials(extensionAPI) !== null;
@@ -548,7 +611,6 @@ async function postToLessWrong(content, extensionAPI) {
     }
     const commentData = (_c = (_b = result.data) == null ? void 0 : _b.createComment) == null ? void 0 : _c.data;
     const userSlug = (_d = commentData == null ? void 0 : commentData.user) == null ? void 0 : _d.slug;
-    const commentId = commentData == null ? void 0 : commentData._id;
     const url = userSlug ? `https://www.lesswrong.com/users/${userSlug}?tab=shortform` : void 0;
     return { success: true, platform: "lesswrong", url };
   } catch (err) {

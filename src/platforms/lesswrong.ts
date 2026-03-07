@@ -1,8 +1,17 @@
 import type { PostContent, PostResult } from "../types";
 import type { ExtensionAPI } from "../types";
-import { getCorsProxyUrl, resolveBlockText } from "../utils";
+import { getCorsProxyUrl } from "../utils";
 
 const LW_GRAPHQL_URL = "https://www.lesswrong.com/graphql";
+
+const BLOCK_REF_REGEX = /\(\(([\w\d-]{9,10})\)\)/g;
+const PAGE_REF_REGEX = /\[\[([^\]]+)\]\]/g;
+const HASHTAG_PAGE_REF_REGEX = /#\[\[([^\]]+)\]\]/g;
+const IMAGE_REGEX = /!\[([^\]]*)\]\(([^\s)]*)\)/g;
+const ALIAS_REGEX = /\[([^\]]*)\]\(([^)]+)\)/g;
+const BUTTON_REGEX = /\{\{[^}]*\}\}/g;
+
+declare const window: Window & { roamAlphaAPI: any };
 
 function getCredentials(extensionAPI: ExtensionAPI): { loginToken: string } | null {
   const loginToken = extensionAPI.settings.get("lesswrong-login-token") as string;
@@ -10,26 +19,75 @@ function getCredentials(extensionAPI: ExtensionAPI): { loginToken: string } | nu
   return { loginToken };
 }
 
-// Convert plain text blocks into HTML for LessWrong
-function blocksToHtml(blocks: { text: string }[]): string {
-  const paragraphs = blocks.map((b) => {
-    const text = resolveBlockText(b.text);
-    // Basic markdown-like conversion
-    const escaped = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+// Convert Roam block text to HTML for LessWrong, preserving rich formatting
+function blockToHtml(raw: string): string {
+  if (!raw) return "";
 
-    // Convert **bold** and *italic*
-    let html = escaped
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.+?)\*/g, "<em>$1</em>")
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  let text = raw;
 
-    return `<p>${html}</p>`;
+  // Remove images (will be handled separately later)
+  text = text.replace(IMAGE_REGEX, "");
+
+  // Resolve block references
+  text = text.replace(BLOCK_REF_REGEX, (_, uid) => {
+    try {
+      const result = window.roamAlphaAPI.data.pull(
+        "[:block/string]",
+        [":block/uid", uid]
+      );
+      return result?.[":block/string"] || "";
+    } catch {
+      return "";
+    }
   });
 
-  return paragraphs.join("\n");
+  // Remove button syntax
+  text = text.replace(BUTTON_REGEX, "");
+
+  // HTML-escape the text
+  text = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // Convert Roam/markdown formatting to HTML
+  // Alias links [text](url) -> <a href="url">text</a>
+  text = text.replace(ALIAS_REGEX, '<a href="$2">$1</a>');
+
+  // #[[Page Ref]] -> linked text
+  text = text.replace(HASHTAG_PAGE_REF_REGEX, (_, pageName) => pageName);
+
+  // [[Page Ref]] -> plain text
+  text = text.replace(PAGE_REF_REGEX, (_, pageName) => pageName);
+
+  // Bold **text** -> <strong>
+  text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+  // Italic __text__ -> <em>
+  text = text.replace(/__(.+?)__/g, "<em>$1</em>");
+
+  // Highlight ^^text^^ -> <mark> (LW supports this)
+  text = text.replace(/\^\^(.+?)\^\^/g, "<mark>$1</mark>");
+
+  // Strikethrough ~~text~~ -> <del>
+  text = text.replace(/~~(.+?)~~/g, "<del>$1</del>");
+
+  // Inline code `text` -> <code>
+  text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+  // URLs that aren't already in <a> tags
+  text = text.replace(
+    /(?<!href=")(https?:\/\/[^\s<]+)/g,
+    '<a href="$1">$1</a>'
+  );
+
+  return text.trim();
+}
+
+function blocksToHtml(blocks: { text: string }[]): string {
+  return blocks
+    .map((b) => `<p>${blockToHtml(b.text)}</p>`)
+    .join("\n");
 }
 
 export function isLessWrongConfigured(extensionAPI: ExtensionAPI): boolean {
@@ -105,7 +163,6 @@ export async function postToLessWrong(
 
     const commentData = result.data?.createComment?.data;
     const userSlug = commentData?.user?.slug;
-    const commentId = commentData?._id;
     const url = userSlug
       ? `https://www.lesswrong.com/users/${userSlug}?tab=shortform`
       : undefined;
