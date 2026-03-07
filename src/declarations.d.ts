@@ -1,2 +1,1 @@
-declare module "crypto-js";
-declare module "oauth-1.0a";
+// No external type declarations needed currently

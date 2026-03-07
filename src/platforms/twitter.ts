@@ -1,46 +1,15 @@
 import type { PostContent, PostResult } from "../types";
 import type { ExtensionAPI } from "../types";
-import { getCorsProxyUrl, processBlockText } from "../utils";
-import OAuth from "oauth-1.0a";
-import CryptoJS from "crypto-js";
+import { processBlockText } from "../utils";
 
 const TWITTER_CHAR_LIMIT = 280;
-// Use api.twitter.com — api.x.com may return 503 for some endpoints
-const TWITTER_API_BASE = "https://api.twitter.com/2";
+const BUFFER_API_URL = "https://api.buffer.com";
 
-interface TwitterCreds {
-  apiKey: string;
-  apiSecret: string;
-  accessToken: string;
-  accessTokenSecret: string;
-}
-
-function getCredentials(extensionAPI: ExtensionAPI): TwitterCreds | null {
-  const apiKey = extensionAPI.settings.get("twitter-api-key") as string;
-  const apiSecret = extensionAPI.settings.get("twitter-api-secret") as string;
-  const accessToken = extensionAPI.settings.get("twitter-access-token") as string;
-  const accessTokenSecret = extensionAPI.settings.get("twitter-access-token-secret") as string;
-
-  if (!apiKey || !apiSecret || !accessToken || !accessTokenSecret) return null;
-  return { apiKey, apiSecret, accessToken, accessTokenSecret };
-}
-
-function createOAuthHeader(
-  creds: TwitterCreds,
-  url: string,
-  method: string
-): string {
-  const oauth = new OAuth({
-    consumer: { key: creds.apiKey, secret: creds.apiSecret },
-    signature_method: "HMAC-SHA1",
-    hash_function(baseString: string, key: string) {
-      return CryptoJS.HmacSHA1(baseString, key).toString(CryptoJS.enc.Base64);
-    },
-  });
-
-  const token = { key: creds.accessToken, secret: creds.accessTokenSecret };
-  const authHeader = oauth.toHeader(oauth.authorize({ url, method }, token));
-  return authHeader.Authorization;
+function getCredentials(extensionAPI: ExtensionAPI): { apiToken: string; channelId: string } | null {
+  const apiToken = extensionAPI.settings.get("buffer-api-token") as string;
+  const channelId = extensionAPI.settings.get("buffer-twitter-channel-id") as string;
+  if (!apiToken || !channelId) return null;
+  return { apiToken, channelId };
 }
 
 export function isTwitterConfigured(extensionAPI: ExtensionAPI): boolean {
@@ -70,78 +39,91 @@ export function validateTwitterThread(blocks: { text: string; uid: string }[]): 
   return { valid: errors.length === 0, errors, counts };
 }
 
+async function bufferGraphQL(
+  apiToken: string,
+  query: string,
+  variables?: Record<string, unknown>
+): Promise<any> {
+  const response = await fetch(BUFFER_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiToken}`,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Buffer API HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const result = await response.json();
+  if (result.errors?.length) {
+    throw new Error(result.errors.map((e: { message: string }) => e.message).join(", "));
+  }
+  return result.data;
+}
+
 export async function postToTwitter(
   content: PostContent,
   extensionAPI: ExtensionAPI
 ): Promise<PostResult> {
   const creds = getCredentials(extensionAPI);
   if (!creds) {
-    return { success: false, platform: "twitter", error: "Twitter credentials not configured" };
+    return { success: false, platform: "twitter", error: "Buffer credentials not configured for Twitter" };
   }
 
-  const corsProxy = getCorsProxyUrl();
-  let inReplyToId: string | undefined;
-  let firstTweetUrl: string | undefined;
-
-  for (const block of content.blocks) {
-    const { text } = processBlockText(block.text);
-    const url = `${TWITTER_API_BASE}/tweets`;
-    const body: Record<string, unknown> = { text };
-
-    if (inReplyToId) {
-      body.reply = { in_reply_to_tweet_id: inReplyToId };
-    }
-
-    const authorization = createOAuthHeader(creds, url, "POST");
-    const proxyUrl = `${corsProxy}/${url}`;
-
-    try {
-      // Retry loop: Twitter v2 POST /tweets returns intermittent 503s
-      let response: Response | undefined;
-      let responseText = "";
-      const MAX_RETRIES = 3;
-
-      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        const authorization = createOAuthHeader(creds, url, "POST");
-        response = await fetch(proxyUrl, {
-          method: "POST",
-          headers: {
-            Authorization: authorization,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(body),
-        });
-
-        responseText = await response.text();
-
-        if (response.status !== 503 || attempt === MAX_RETRIES) break;
-        // Wait before retry: 1s, 2s
-        await new Promise((r) => setTimeout(r, attempt * 1000));
-      }
-
-      if (!response!.ok) {
-        let errorMsg = `HTTP ${response!.status}: ${response!.statusText}`;
-        try {
-          const errorData = JSON.parse(responseText);
-          errorMsg = errorData?.detail || errorData?.title || errorData?.errors?.[0]?.message || errorMsg;
-        } catch {}
-        return { success: false, platform: "twitter", error: errorMsg };
-      }
-
-      const data = JSON.parse(responseText);
-      const tweetId = data.data?.id;
-      inReplyToId = tweetId;
-
-      if (!firstTweetUrl && tweetId) {
-        firstTweetUrl = `https://x.com/i/web/status/${tweetId}`;
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { success: false, platform: "twitter", error: msg };
-    }
+  // Buffer doesn't natively support threads as a single operation,
+  // so we post each block as a separate post via Buffer.
+  // For single tweets this is straightforward; for threads,
+  // each block becomes its own scheduled post.
+  const texts = content.blocks.map((b) => processBlockText(b.text).text).filter(Boolean);
+  if (texts.length === 0) {
+    return { success: false, platform: "twitter", error: "No content to post" };
   }
 
-  return { success: true, platform: "twitter", url: firstTweetUrl };
+  const mutation = `
+    mutation CreatePost($input: CreatePostInput!) {
+      createPost(input: $input) {
+        ... on PostActionSuccess {
+          post {
+            id
+            status
+          }
+        }
+        ... on MutationError {
+          message
+        }
+      }
+    }
+  `;
+
+  try {
+    // Post the first block (or all blocks joined if it's a thread we can't split)
+    // For threads: post each block separately via Buffer
+    for (let i = 0; i < texts.length; i++) {
+      const variables = {
+        input: {
+          text: texts[i],
+          channelId: creds.channelId,
+          schedulingType: "automatic",
+          mode: "shareNow",
+        },
+      };
+
+      const data = await bufferGraphQL(creds.apiToken, mutation, variables);
+      const result = data.createPost;
+
+      if (result.message) {
+        return { success: false, platform: "twitter", error: result.message };
+      }
+    }
+
+    return { success: true, platform: "twitter" };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, platform: "twitter", error: msg };
+  }
 }
 
 export const TWITTER_CHAR_MAX = TWITTER_CHAR_LIMIT;

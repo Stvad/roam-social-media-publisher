@@ -122,30 +122,18 @@ export default {
     extensionAPI.settings.panel.create({
       tabTitle: "Social Media Publisher",
       settings: [
-        // Twitter
+        // Twitter (via Buffer)
         {
-          id: "twitter-api-key",
-          name: "Twitter API Key",
-          description: "Consumer API Key from X Developer Portal",
-          action: { type: "input", placeholder: "API Key" },
+          id: "buffer-api-token",
+          name: "Buffer API Token",
+          description: "API token from buffer.com/settings/api — used for Twitter/X posting",
+          action: { type: "input", placeholder: "Buffer API Token" },
         },
         {
-          id: "twitter-api-secret",
-          name: "Twitter API Secret",
-          description: "Consumer API Secret",
-          action: { type: "input", placeholder: "API Secret" },
-        },
-        {
-          id: "twitter-access-token",
-          name: "Twitter Access Token",
-          description: "User Access Token from X Developer Portal",
-          action: { type: "input", placeholder: "Access Token" },
-        },
-        {
-          id: "twitter-access-token-secret",
-          name: "Twitter Access Token Secret",
-          description: "User Access Token Secret",
-          action: { type: "input", placeholder: "Access Token Secret" },
+          id: "buffer-twitter-channel-id",
+          name: "Buffer Twitter Channel ID",
+          description: "Channel ID for your X/Twitter account in Buffer",
+          action: { type: "input", placeholder: "Channel ID" },
         },
         // Bluesky
         {

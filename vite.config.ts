@@ -21,7 +21,7 @@ export default defineConfig({
       name: "roam-globals",
       enforce: "pre",
       resolveId(source) {
-        if (["react", "react-dom", "crypto-js"].includes(source)) {
+        if (["react", "react-dom"].includes(source)) {
           return `\0roam-global:${source}`;
         }
         return null;
@@ -32,9 +32,6 @@ export default defineConfig({
         }
         if (id === "\0roam-global:react-dom") {
           return "const ReactDOM = window.ReactDOM; export default ReactDOM; export const { render, createPortal, unmountComponentAtNode, findDOMNode, hydrate, flushSync } = ReactDOM;";
-        }
-        if (id === "\0roam-global:crypto-js") {
-          return "const CryptoJS = window.CryptoJS; export default CryptoJS; export const { HmacSHA1, enc, SHA256, MD5, AES, lib } = CryptoJS;";
         }
         return null;
       },
