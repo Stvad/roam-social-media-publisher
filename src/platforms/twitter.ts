@@ -1,19 +1,20 @@
 import type { PostContent, PostResult } from "../types";
 import type { ExtensionAPI } from "../types";
-import { processBlockText } from "../utils";
+import { getCorsProxyUrl, processBlockText } from "../utils";
 
 const TWITTER_CHAR_LIMIT = 280;
 const BUFFER_API_URL = "https://api.buffer.com";
 
-function getCredentials(extensionAPI: ExtensionAPI): { apiToken: string; channelId: string } | null {
+// Cache the resolved channel ID so we only look it up once per session
+let cachedChannelId: string | null = null;
+
+function getApiToken(extensionAPI: ExtensionAPI): string | null {
   const apiToken = extensionAPI.settings.get("buffer-api-token") as string;
-  const channelId = extensionAPI.settings.get("buffer-twitter-channel-id") as string;
-  if (!apiToken || !channelId) return null;
-  return { apiToken, channelId };
+  return apiToken || null;
 }
 
 export function isTwitterConfigured(extensionAPI: ExtensionAPI): boolean {
-  return getCredentials(extensionAPI) !== null;
+  return getApiToken(extensionAPI) !== null;
 }
 
 export function validateTwitterThread(blocks: { text: string; uid: string }[]): {
@@ -44,7 +45,10 @@ async function bufferGraphQL(
   query: string,
   variables?: Record<string, unknown>
 ): Promise<any> {
-  const response = await fetch(BUFFER_API_URL, {
+  const corsProxy = getCorsProxyUrl();
+  const url = corsProxy ? `${corsProxy}/${BUFFER_API_URL}` : BUFFER_API_URL;
+
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -64,19 +68,49 @@ async function bufferGraphQL(
   return result.data;
 }
 
+async function resolveTwitterChannelId(apiToken: string): Promise<string> {
+  if (cachedChannelId) return cachedChannelId;
+
+  // Step 1: Get organization ID
+  const orgData = await bufferGraphQL(apiToken, `{ account { organizations { id } } }`);
+  const orgs = orgData.account?.organizations;
+  if (!orgs?.length) throw new Error("No Buffer organizations found");
+
+  // Step 2: Get channels for the org, find the Twitter one
+  const channelData = await bufferGraphQL(
+    apiToken,
+    `query GetChannels($input: ChannelsInput!) { channels(input: $input) { id name service } }`,
+    { input: { organizationId: orgs[0].id } }
+  );
+
+  const twitterChannel = channelData.channels?.find(
+    (c: { service: string }) => c.service === "twitter"
+  );
+  if (!twitterChannel) {
+    throw new Error("No Twitter/X channel found in your Buffer account. Connect one at buffer.com first.");
+  }
+
+  cachedChannelId = twitterChannel.id;
+  return twitterChannel.id;
+}
+
 export async function postToTwitter(
   content: PostContent,
   extensionAPI: ExtensionAPI
 ): Promise<PostResult> {
-  const creds = getCredentials(extensionAPI);
-  if (!creds) {
-    return { success: false, platform: "twitter", error: "Buffer credentials not configured for Twitter" };
+  const apiToken = getApiToken(extensionAPI);
+  if (!apiToken) {
+    return { success: false, platform: "twitter", error: "Buffer API token not configured" };
   }
 
-  // Buffer doesn't natively support threads as a single operation,
-  // so we post each block as a separate post via Buffer.
-  // For single tweets this is straightforward; for threads,
-  // each block becomes its own scheduled post.
+  let channelId: string;
+  try {
+    channelId = await resolveTwitterChannelId(apiToken);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, platform: "twitter", error: msg };
+  }
+
   const texts = content.blocks.map((b) => processBlockText(b.text).text).filter(Boolean);
   if (texts.length === 0) {
     return { success: false, platform: "twitter", error: "No content to post" };
@@ -99,19 +133,17 @@ export async function postToTwitter(
   `;
 
   try {
-    // Post the first block (or all blocks joined if it's a thread we can't split)
-    // For threads: post each block separately via Buffer
-    for (let i = 0; i < texts.length; i++) {
+    for (const text of texts) {
       const variables = {
         input: {
-          text: texts[i],
-          channelId: creds.channelId,
+          text,
+          channelId,
           schedulingType: "automatic",
           mode: "shareNow",
         },
       };
 
-      const data = await bufferGraphQL(creds.apiToken, mutation, variables);
+      const data = await bufferGraphQL(apiToken, mutation, variables);
       const result = data.createPost;
 
       if (result.message) {

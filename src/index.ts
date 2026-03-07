@@ -126,14 +126,8 @@ export default {
         {
           id: "buffer-api-token",
           name: "Buffer API Token",
-          description: "API token from buffer.com/settings/api — used for Twitter/X posting",
+          description: "API token from buffer.com/settings/api — used for Twitter/X posting. Connect your X account in Buffer first.",
           action: { type: "input", placeholder: "Buffer API Token" },
-        },
-        {
-          id: "buffer-twitter-channel-id",
-          name: "Buffer Twitter Channel ID",
-          description: "Channel ID for your X/Twitter account in Buffer",
-          action: { type: "input", placeholder: "Channel ID" },
         },
         // Bluesky
         {

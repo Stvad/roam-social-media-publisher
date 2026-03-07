@@ -70,7 +70,6 @@ export interface PostResult {
 export interface PlatformCredentials {
   twitter?: {
     bufferApiToken: string;
-    bufferChannelId: string;
   };
   bluesky?: {
     handle: string;
