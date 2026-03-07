@@ -19,27 +19,33 @@ You can also right-click any block and select **Publish to Social Media**, or us
 
 ## Platform Setup
 
-### Twitter / X
+### Twitter / X (via Buffer)
 
-1. Go to the [X Developer Portal](https://developer.x.com) and create a project/app
-2. In your app settings, generate **API Key**, **API Secret**, **Access Token**, and **Access Token Secret**
-3. Ensure your app has **Read and Write** permissions
-4. Enter all four values in the extension settings
+Twitter posting is done through [Buffer](https://buffer.com), which acts as a proxy to the X API.
+
+1. Create a free [Buffer](https://buffer.com/signup) account
+2. Connect your X/Twitter account in Buffer (Channels > Connect a Channel > Twitter/X)
+3. Go to [buffer.com/manage](https://buffer.com/manage), click your profile icon (bottom-left) > **My Preferences** > **API**
+4. Copy the **Access Token** shown on that page
+5. Paste it into the **Buffer API Token** field in the extension settings
+
+The plugin automatically finds your connected X/Twitter channel from your Buffer account.
 
 ### Bluesky
 
-1. Go to Bluesky Settings > App Passwords
-2. Create a new app password
-3. Enter your handle (e.g., `yourname.bsky.social`) and the app password in settings
+1. Log into [bsky.app](https://bsky.app)
+2. Go to **Settings** > **Privacy and Security** > **App Passwords**
+3. Click **Add App Password**, give it a name, and copy the generated password
+4. In the extension settings, enter your handle (e.g., `yourname.bsky.social`) and the app password
 
 ### LessWrong
 
-1. Log into LessWrong in your browser
-2. Open browser DevTools > Application > Cookies
-3. Copy the value of the `loginToken` cookie
-4. Paste it in the extension settings
+1. Log into [lesswrong.com](https://www.lesswrong.com) in your browser
+2. Open browser DevTools (F12) > **Application** tab > **Cookies** > `https://www.lesswrong.com`
+3. Find the cookie named `loginToken` and copy its value
+4. Paste it into the **LessWrong Login Token** field in the extension settings
 
-Note: The login token may expire when you log out or after some time. You'll need to update it if that happens.
+Note: The login token expires when you log out or after some time. Update it in settings if posting starts failing with auth errors.
 
 ## Character Limits
 

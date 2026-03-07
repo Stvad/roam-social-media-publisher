@@ -125,8 +125,8 @@ export default {
         // Twitter (via Buffer)
         {
           id: "buffer-api-token",
-          name: "Buffer API Token",
-          description: "API token from buffer.com/settings/api — used for Twitter/X posting. Connect your X account in Buffer first.",
+          name: "Buffer API Token (for Twitter/X)",
+          description: "Connect X in Buffer, then go to My Preferences > API and copy the Access Token",
           action: { type: "input", placeholder: "Buffer API Token" },
         },
         // Bluesky
@@ -139,14 +139,14 @@ export default {
         {
           id: "bluesky-app-password",
           name: "Bluesky App Password",
-          description: "App Password from Bluesky Settings > App Passwords",
+          description: "Settings > Privacy and Security > App Passwords > Add App Password",
           action: { type: "input", placeholder: "xxxx-xxxx-xxxx-xxxx" },
         },
         // LessWrong
         {
           id: "lesswrong-login-token",
           name: "LessWrong Login Token",
-          description: "Login token from browser cookies (cookie name: loginToken)",
+          description: "DevTools > Application > Cookies > lesswrong.com > copy 'loginToken' value",
           action: { type: "input", placeholder: "Login Token" },
         },
       ],
