@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import type { ExtensionAPI, PlatformId, PostResult } from "../types";
-import { getChildBlocks, resolveBlockText } from "../utils";
+import { getChildBlocks, getBlockText, resolveBlockText } from "../utils";
 import { isTwitterConfigured, validateTwitterThread, postToTwitter, TWITTER_CHAR_MAX } from "../platforms/twitter";
 import { isBlueskyConfigured, validateBlueskyThread, postToBluesky, BLUESKY_CHAR_MAX } from "../platforms/bluesky";
 import { isLessWrongConfigured, postToLessWrong } from "../platforms/lesswrong";
+
+declare const window: Window & { roamAlphaAPI: any };
 
 const Blueprint = (window as any).Blueprint?.Core;
 const { Button, Popover, Spinner, Icon, Tooltip, Checkbox } = Blueprint;
@@ -118,7 +120,21 @@ const PublishContent: React.FC<
     }
     setResults(newResults);
     setSending(false);
-  }, [blocks, selectedPlatforms, extensionAPI]);
+
+    // Append post links and timestamp to parent block on success
+    const successResults = newResults.filter((r) => r.success && r.url);
+    if (successResults.length > 0) {
+      const parentText = getBlockText(blockUid);
+      const links = successResults.map((r) => `[${PLATFORM_LABELS[r.platform]}](${r.url})`).join(" ");
+      const timestamp = new Date().toLocaleString();
+      window.roamAlphaAPI.updateBlock({
+        block: {
+          uid: blockUid,
+          string: `${parentText} (Posted ${timestamp}: ${links})`,
+        },
+      });
+    }
+  }, [blocks, selectedPlatforms, extensionAPI, blockUid]);
 
   const allConfigured: PlatformId[] = useMemo(() => {
     const platforms: PlatformId[] = [];
