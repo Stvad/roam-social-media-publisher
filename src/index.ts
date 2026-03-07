@@ -21,11 +21,16 @@ function processButton(
   target: "all" | PlatformId,
   extensionAPI: ExtensionAPI
 ) {
-  // Find the block UID from the enclosing roam-block container
-  const blockEl = button.closest(".roam-block") as HTMLElement;
-  if (!blockEl) return;
-  const blockUid = blockEl.id?.match(/(.{9,12})$/)?.[1];
-  if (!blockUid) return;
+  // Find the block UID from the enclosing block
+  // Roam DOM: .roam-block-container > .rm-block-main > .rm-block__input (has id)
+  // The id format is "block-input-{windowId}-{blockUid}" where blockUid is last 9 chars
+  const blockContainer = button.closest(".roam-block-container") as HTMLElement;
+  if (!blockContainer) return;
+  const blockInput = blockContainer.querySelector(".rm-block__input") as HTMLElement;
+  const roamBlock = button.closest(".roam-block") as HTMLElement;
+  const idSource = blockInput?.id || roamBlock?.id || "";
+  if (idSource.length < 9) return;
+  const blockUid = idSource.substring(idSource.length - 9);
 
   // Check if we already rendered our overlay next to this button
   if (button.parentElement?.querySelector(`.smp-overlay-${command}`)) return;

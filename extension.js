@@ -799,12 +799,15 @@ const BUTTON_COMMANDS = [
 const observers = [];
 const styleEl = [];
 function processButton(button, command, target, extensionAPI) {
-  var _a2, _b, _c;
-  const blockEl = button.closest(".roam-block");
-  if (!blockEl) return;
-  const blockUid = (_b = (_a2 = blockEl.id) == null ? void 0 : _a2.match(/(.{9,12})$/)) == null ? void 0 : _b[1];
-  if (!blockUid) return;
-  if ((_c = button.parentElement) == null ? void 0 : _c.querySelector(`.smp-overlay-${command}`)) return;
+  var _a2;
+  const blockContainer = button.closest(".roam-block-container");
+  if (!blockContainer) return;
+  const blockInput = blockContainer.querySelector(".rm-block__input");
+  const roamBlock = button.closest(".roam-block");
+  const idSource = (blockInput == null ? void 0 : blockInput.id) || (roamBlock == null ? void 0 : roamBlock.id) || "";
+  if (idSource.length < 9) return;
+  const blockUid = idSource.substring(idSource.length - 9);
+  if ((_a2 = button.parentElement) == null ? void 0 : _a2.querySelector(`.smp-overlay-${command}`)) return;
   const span = document.createElement("span");
   span.className = `smp-overlay-${command}`;
   button.insertAdjacentElement("afterend", span);
