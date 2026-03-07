@@ -96,13 +96,13 @@ async function iP(e, t) {
   let o;
   try {
     o = await nP(r);
-  } catch (a) {
-    return { success: !1, platform: "twitter", error: a instanceof Error ? a.message : String(a) };
+  } catch (c) {
+    return { success: !1, platform: "twitter", error: c instanceof Error ? c.message : String(c) };
   }
-  const n = e.blocks.map((a) => Ji(a.text).text).filter(Boolean);
-  if (n.length === 0)
+  const n = e.blocks.map((c) => Ji(c.text));
+  if (!n.some((c) => c.text || c.mediaUrls.length))
     return { success: !1, platform: "twitter", error: "No content to post" };
-  const i = `
+  const a = `
     mutation CreatePost($input: CreatePostInput!) {
       createPost(input: $input) {
         ... on PostActionSuccess {
@@ -118,21 +118,27 @@ async function iP(e, t) {
     }
   `;
   try {
-    for (const a of n) {
-      const d = (await zc(r, i, {
-        input: {
-          text: a,
-          channelId: o,
-          schedulingType: "automatic",
-          mode: "shareNow"
-        }
-      })).createPost;
-      if (d.message)
-        return { success: !1, platform: "twitter", error: d.message };
+    for (const c of n) {
+      if (!c.text && !c.mediaUrls.length) continue;
+      const l = {
+        text: c.text,
+        channelId: o,
+        schedulingType: "automatic",
+        mode: "shareNow"
+      };
+      c.mediaUrls.length > 0 && (l.assets = {
+        images: c.mediaUrls.slice(0, 4).map((h) => ({
+          url: h,
+          metadata: { altText: "Image from Roam Research" }
+        }))
+      });
+      const p = (await zc(r, a, { input: l })).createPost;
+      if (p.message)
+        return { success: !1, platform: "twitter", error: p.message };
     }
     return { success: !0, platform: "twitter" };
-  } catch (a) {
-    return { success: !1, platform: "twitter", error: a instanceof Error ? a.message : String(a) };
+  } catch (c) {
+    return { success: !1, platform: "twitter", error: c instanceof Error ? c.message : String(c) };
   }
 }
 const sP = Nc;
@@ -42478,23 +42484,33 @@ function NC(e) {
 function ore(e) {
   if (!e) return "";
   let t = e;
-  return t = t.replace(ere, ""), t = t.replace(Jte, (r, o) => {
+  const r = [];
+  t = t.replace(ere, (n, i, a) => (r.push({ alt: i, url: a }), "")), t = t.replace(Jte, (n, i) => {
     try {
-      const n = window.roamAlphaAPI.data.pull(
+      const a = window.roamAlphaAPI.data.pull(
         "[:block/string]",
-        [":block/uid", o]
+        [":block/uid", i]
       );
-      return (n == null ? void 0 : n[":block/string"]) || "";
+      return (a == null ? void 0 : a[":block/string"]) || "";
     } catch {
       return "";
     }
-  }), t = t.replace(rre, ""), t = t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"), t = t.replace(tre, '<a href="$2">$1</a>'), t = t.replace(Yte, (r, o) => o), t = t.replace(Qte, (r, o) => o), t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"), t = t.replace(/__(.+?)__/g, "<em>$1</em>"), t = t.replace(/\^\^(.+?)\^\^/g, "<mark>$1</mark>"), t = t.replace(/~~(.+?)~~/g, "<del>$1</del>"), t = t.replace(/`([^`]+)`/g, "<code>$1</code>"), t = t.replace(
+  }), t = t.replace(rre, ""), t = t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"), t = t.replace(tre, '<a href="$2">$1</a>'), t = t.replace(Yte, (n, i) => i), t = t.replace(Qte, (n, i) => i), t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"), t = t.replace(/__(.+?)__/g, "<em>$1</em>"), t = t.replace(/\^\^(.+?)\^\^/g, "<mark>$1</mark>"), t = t.replace(/~~(.+?)~~/g, "<del>$1</del>"), t = t.replace(/`([^`]+)`/g, "<code>$1</code>"), t = t.replace(
     new RegExp('(?<!href=")(https?:\\/\\/[^\\s<]+)', "g"),
     '<a href="$1">$1</a>'
-  ), t.trim();
+  );
+  let o = t.trim();
+  if (r.length > 0) {
+    const n = r.map((i) => `<img src="${i.url}" alt="${i.alt || "Image from Roam Research"}" />`).join("");
+    o += n;
+  }
+  return o;
 }
 function nre(e) {
-  return e.map((t) => `<p>${ore(t.text)}</p>`).join(`
+  return e.map((t) => {
+    const r = ore(t.text);
+    return r ? `<p>${r}</p>` : "";
+  }).filter(Boolean).join(`
 `);
 }
 function fy(e) {

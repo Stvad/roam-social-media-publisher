@@ -25,8 +25,12 @@ function blockToHtml(raw: string): string {
 
   let text = raw;
 
-  // Remove images (will be handled separately later)
-  text = text.replace(IMAGE_REGEX, "");
+  // Extract images to append as <img> tags after the text
+  const images: { alt: string; url: string }[] = [];
+  text = text.replace(IMAGE_REGEX, (_, alt, url) => {
+    images.push({ alt, url });
+    return "";
+  });
 
   // Resolve block references
   text = text.replace(BLOCK_REF_REGEX, (_, uid) => {
@@ -81,12 +85,26 @@ function blockToHtml(raw: string): string {
     '<a href="$1">$1</a>'
   );
 
-  return text.trim();
+  let result = text.trim();
+
+  // Append images as <img> tags
+  if (images.length > 0) {
+    const imgTags = images
+      .map((img) => `<img src="${img.url}" alt="${img.alt || "Image from Roam Research"}" />`)
+      .join("");
+    result += imgTags;
+  }
+
+  return result;
 }
 
 function blocksToHtml(blocks: { text: string }[]): string {
   return blocks
-    .map((b) => `<p>${blockToHtml(b.text)}</p>`)
+    .map((b) => {
+      const html = blockToHtml(b.text);
+      return html ? `<p>${html}</p>` : "";
+    })
+    .filter(Boolean)
     .join("\n");
 }
 

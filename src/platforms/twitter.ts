@@ -111,8 +111,9 @@ export async function postToTwitter(
     return { success: false, platform: "twitter", error: msg };
   }
 
-  const texts = content.blocks.map((b) => processBlockText(b.text).text).filter(Boolean);
-  if (texts.length === 0) {
+  const processed = content.blocks.map((b) => processBlockText(b.text));
+  const hasContent = processed.some((p) => p.text || p.mediaUrls.length);
+  if (!hasContent) {
     return { success: false, platform: "twitter", error: "No content to post" };
   }
 
@@ -133,17 +134,26 @@ export async function postToTwitter(
   `;
 
   try {
-    for (const text of texts) {
-      const variables = {
-        input: {
-          text,
-          channelId,
-          schedulingType: "automatic",
-          mode: "shareNow",
-        },
+    for (const block of processed) {
+      if (!block.text && !block.mediaUrls.length) continue;
+
+      const input: Record<string, unknown> = {
+        text: block.text,
+        channelId,
+        schedulingType: "automatic",
+        mode: "shareNow",
       };
 
-      const data = await bufferGraphQL(apiToken, mutation, variables);
+      if (block.mediaUrls.length > 0) {
+        input.assets = {
+          images: block.mediaUrls.slice(0, 4).map((url) => ({
+            url,
+            metadata: { altText: "Image from Roam Research" },
+          })),
+        };
+      }
+
+      const data = await bufferGraphQL(apiToken, mutation, { input });
       const result = data.createPost;
 
       if (result.message) {
