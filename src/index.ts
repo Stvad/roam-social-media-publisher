@@ -43,28 +43,41 @@ function createButtonObserver(
   target: "all" | PlatformId,
   extensionAPI: ExtensionAPI
 ) {
-  const selector = `button.bp3-button.dont-focus-block[data-tag="${command}"]`;
+  const dataAttr = `data-smp-${command}`;
+  const commandUpper = command.toUpperCase();
 
-  const scanAndProcess = (root: HTMLElement | Document) => {
-    root.querySelectorAll(selector).forEach((btn) => {
-      processButton(btn as HTMLElement, command, target, extensionAPI);
-    });
+  const isMatch = (el: HTMLElement) =>
+    el.nodeName === "BUTTON" &&
+    el.classList.contains("bp3-button") &&
+    el.innerText.toUpperCase() === commandUpper;
+
+  const tryProcess = (el: HTMLElement) => {
+    if (!isMatch(el)) return;
+    if (el.getAttribute(dataAttr)) return;
+    el.setAttribute(dataAttr, "true");
+    processButton(el, command, target, extensionAPI);
+  };
+
+  const scanChildren = (root: Node) => {
+    const buttons = (root as HTMLElement).getElementsByClassName?.("bp3-button");
+    if (!buttons) return;
+    Array.from(buttons)
+      .filter((b) => b.nodeName === "BUTTON")
+      .forEach((b) => tryProcess(b as HTMLElement));
   };
 
   // Process existing buttons already on page
-  scanAndProcess(document);
+  scanChildren(document);
 
-  // Observe DOM for new buttons appearing (page navigation, block expansion, etc.)
+  // Observe DOM for new buttons appearing
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       for (const node of Array.from(mutation.addedNodes)) {
         if (!(node instanceof HTMLElement)) continue;
-        // Check if the added node itself is a matching button
-        if (node.matches?.(selector)) {
-          processButton(node, command, target, extensionAPI);
+        if (isMatch(node)) {
+          tryProcess(node);
         }
-        // Check descendants of the added node
-        scanAndProcess(node);
+        scanChildren(node);
       }
     }
   });

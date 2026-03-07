@@ -811,22 +811,30 @@ function processButton(button, command, target, extensionAPI) {
   renderPublishOverlay({ parent: span, blockUid, extensionAPI, target });
 }
 function createButtonObserver(command, target, extensionAPI) {
-  const selector = `button.bp3-button.dont-focus-block[data-tag="${command}"]`;
-  const scanAndProcess = (root) => {
-    root.querySelectorAll(selector).forEach((btn) => {
-      processButton(btn, command, target, extensionAPI);
-    });
+  const dataAttr = `data-smp-${command}`;
+  const commandUpper = command.toUpperCase();
+  const isMatch = (el) => el.nodeName === "BUTTON" && el.classList.contains("bp3-button") && el.innerText.toUpperCase() === commandUpper;
+  const tryProcess = (el) => {
+    if (!isMatch(el)) return;
+    if (el.getAttribute(dataAttr)) return;
+    el.setAttribute(dataAttr, "true");
+    processButton(el, command, target, extensionAPI);
   };
-  scanAndProcess(document);
-  const observer = new MutationObserver((mutations) => {
+  const scanChildren = (root) => {
     var _a2;
+    const buttons = (_a2 = root.getElementsByClassName) == null ? void 0 : _a2.call(root, "bp3-button");
+    if (!buttons) return;
+    Array.from(buttons).filter((b) => b.nodeName === "BUTTON").forEach((b) => tryProcess(b));
+  };
+  scanChildren(document);
+  const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       for (const node of Array.from(mutation.addedNodes)) {
         if (!(node instanceof HTMLElement)) continue;
-        if ((_a2 = node.matches) == null ? void 0 : _a2.call(node, selector)) {
-          processButton(node, command, target, extensionAPI);
+        if (isMatch(node)) {
+          tryProcess(node);
         }
-        scanAndProcess(node);
+        scanChildren(node);
       }
     }
   });
