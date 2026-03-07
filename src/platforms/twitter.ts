@@ -5,7 +5,8 @@ import OAuth from "oauth-1.0a";
 import CryptoJS from "crypto-js";
 
 const TWITTER_CHAR_LIMIT = 280;
-const TWITTER_API_BASE = "https://api.x.com/2";
+// Use api.twitter.com — api.x.com may return 503 for some endpoints
+const TWITTER_API_BASE = "https://api.twitter.com/2";
 
 interface TwitterCreds {
   apiKey: string;
@@ -92,24 +93,42 @@ export async function postToTwitter(
     }
 
     const authorization = createOAuthHeader(creds, url, "POST");
+    const proxyUrl = `${corsProxy}/${url}`;
 
     try {
-      const response = await fetch(`${corsProxy}/${url}`, {
-        method: "POST",
-        headers: {
-          Authorization: authorization,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
+      // Retry loop: Twitter v2 POST /tweets returns intermittent 503s
+      let response: Response | undefined;
+      let responseText = "";
+      const MAX_RETRIES = 3;
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMsg = errorData?.detail || errorData?.title || `HTTP ${response.status}`;
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const authorization = createOAuthHeader(creds, url, "POST");
+        response = await fetch(proxyUrl, {
+          method: "POST",
+          headers: {
+            Authorization: authorization,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+
+        responseText = await response.text();
+
+        if (response.status !== 503 || attempt === MAX_RETRIES) break;
+        // Wait before retry: 1s, 2s
+        await new Promise((r) => setTimeout(r, attempt * 1000));
+      }
+
+      if (!response!.ok) {
+        let errorMsg = `HTTP ${response!.status}: ${response!.statusText}`;
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMsg = errorData?.detail || errorData?.title || errorData?.errors?.[0]?.message || errorMsg;
+        } catch {}
         return { success: false, platform: "twitter", error: errorMsg };
       }
 
-      const data = await response.json();
+      const data = JSON.parse(responseText);
       const tweetId = data.data?.id;
       inReplyToId = tweetId;
 
