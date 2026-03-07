@@ -98,17 +98,18 @@ async function iP(e) {
   return _c = n.id, n.id;
 }
 async function sP(e, t) {
+  var c;
   const r = by(t);
   if (!r)
     return { success: !1, platform: "twitter", error: "Buffer API token not configured" };
   let o;
   try {
     o = await iP(r);
-  } catch (c) {
-    return { success: !1, platform: "twitter", error: c instanceof Error ? c.message : String(c) };
+  } catch (d) {
+    return { success: !1, platform: "twitter", error: d instanceof Error ? d.message : String(d) };
   }
-  const n = e.blocks.map((c) => Ji(c.text));
-  if (!n.some((c) => c.text || c.mediaUrls.length))
+  const n = e.blocks.map((d) => Ji(d.text));
+  if (!n.some((d) => d.text || d.mediaUrls.length))
     return { success: !1, platform: "twitter", error: "No content to post" };
   const a = `
     mutation CreatePost($input: CreatePostInput!) {
@@ -117,6 +118,7 @@ async function sP(e, t) {
           post {
             id
             status
+            externalLink
           }
         }
         ... on MutationError {
@@ -126,27 +128,33 @@ async function sP(e, t) {
     }
   `;
   try {
-    for (const c of n) {
-      if (!c.text && !c.mediaUrls.length) continue;
-      const d = {
-        text: c.text,
-        channelId: o,
-        schedulingType: "automatic",
-        mode: "shareNow"
-      };
-      c.mediaUrls.length > 0 && (d.assets = {
-        images: c.mediaUrls.slice(0, 4).map((h) => ({
-          url: h,
-          metadata: { altText: "Image from Roam Research" }
-        }))
-      });
-      const p = (await zc(r, a, { input: d })).createPost;
-      if (p.message)
-        return { success: !1, platform: "twitter", error: p.message };
-    }
-    return { success: !0, platform: "twitter" };
-  } catch (c) {
-    return { success: !1, platform: "twitter", error: c instanceof Error ? c.message : String(c) };
+    let d = function(A) {
+      if (A.length !== 0)
+        return {
+          images: A.slice(0, 4).map((g) => ({
+            url: g,
+            metadata: { altText: "Image from Roam Research" }
+          }))
+        };
+    };
+    const l = n[0], p = n.slice(1).filter((A) => A.text || A.mediaUrls.length), h = {
+      text: l.text,
+      channelId: o,
+      schedulingType: "automatic",
+      mode: "shareNow"
+    }, v = d(l.mediaUrls);
+    v && (h.assets = v), p.length > 0 && (h.metadata = {
+      twitter: {
+        thread: p.map((A) => {
+          const g = { text: A.text }, E = d(A.mediaUrls);
+          return E && (g.assets = E), g;
+        })
+      }
+    });
+    const b = (await zc(r, a, { input: h })).createPost;
+    return b.message ? { success: !1, platform: "twitter", error: b.message } : { success: !0, platform: "twitter", url: ((c = b.post) == null ? void 0 : c.externalLink) || void 0 };
+  } catch (d) {
+    return { success: !1, platform: "twitter", error: d instanceof Error ? d.message : String(d) };
   }
 }
 const aP = Nc;
@@ -432,29 +440,29 @@ var rd = {};
   };
   Object.defineProperty(e, "__esModule", { value: !0 }), e.isAsync = e.isValid = e.isDirty = e.isAborted = e.OK = e.DIRTY = e.INVALID = e.ParseStatus = e.EMPTY_PATH = e.makeIssue = void 0, e.addIssueToContext = i;
   const r = Mr, o = t(ma), n = (m) => {
-    const { data: b, path: _, errorMaps: E, issueData: g } = m, A = [..._, ...g.path || []], P = {
+    const { data: b, path: _, errorMaps: A, issueData: g } = m, E = [..._, ...g.path || []], P = {
       ...g,
-      path: A
+      path: E
     };
     if (g.message !== void 0)
       return {
         ...g,
-        path: A,
+        path: E,
         message: g.message
       };
     let S = "";
-    const R = E.filter((B) => !!B).slice().reverse();
+    const R = A.filter((B) => !!B).slice().reverse();
     for (const B of R)
       S = B(P, { data: b, defaultError: S }).message;
     return {
       ...g,
-      path: A,
+      path: E,
       message: S
     };
   };
   e.makeIssue = n, e.EMPTY_PATH = [];
   function i(m, b) {
-    const _ = (0, r.getErrorMap)(), E = (0, e.makeIssue)({
+    const _ = (0, r.getErrorMap)(), A = (0, e.makeIssue)({
       issueData: b,
       data: m.data,
       path: m.path,
@@ -469,7 +477,7 @@ var rd = {};
         // then global default map
       ].filter((g) => !!g)
     });
-    m.common.issues.push(E);
+    m.common.issues.push(A);
   }
   class a {
     constructor() {
@@ -482,34 +490,34 @@ var rd = {};
       this.value !== "aborted" && (this.value = "aborted");
     }
     static mergeArray(b, _) {
-      const E = [];
+      const A = [];
       for (const g of _) {
         if (g.status === "aborted")
           return e.INVALID;
-        g.status === "dirty" && b.dirty(), E.push(g.value);
+        g.status === "dirty" && b.dirty(), A.push(g.value);
       }
-      return { status: b.value, value: E };
+      return { status: b.value, value: A };
     }
     static async mergeObjectAsync(b, _) {
-      const E = [];
+      const A = [];
       for (const g of _) {
-        const A = await g.key, P = await g.value;
-        E.push({
-          key: A,
+        const E = await g.key, P = await g.value;
+        A.push({
+          key: E,
           value: P
         });
       }
-      return a.mergeObjectSync(b, E);
+      return a.mergeObjectSync(b, A);
     }
     static mergeObjectSync(b, _) {
-      const E = {};
+      const A = {};
       for (const g of _) {
-        const { key: A, value: P } = g;
-        if (A.status === "aborted" || P.status === "aborted")
+        const { key: E, value: P } = g;
+        if (E.status === "aborted" || P.status === "aborted")
           return e.INVALID;
-        A.status === "dirty" && b.dirty(), P.status === "dirty" && b.dirty(), A.value !== "__proto__" && (typeof P.value < "u" || g.alwaysSet) && (E[A.value] = P.value);
+        E.status === "dirty" && b.dirty(), P.status === "dirty" && b.dirty(), E.value !== "__proto__" && (typeof P.value < "u" || g.alwaysSet) && (A[E.value] = P.value);
       }
-      return { status: b.value, value: E };
+      return { status: b.value, value: A };
     }
   }
   e.ParseStatus = a, e.INVALID = Object.freeze({
@@ -3302,11 +3310,11 @@ var Ho = {};
   e.isErrnoException = b;
   const _ = (S, R) => !!S && typeof S == "object" && S.message === R;
   e.errHasMsg = _;
-  const E = (S, R) => S.reduce((B, z, ee) => {
+  const A = (S, R) => S.reduce((B, z, ee) => {
     const ae = Math.floor(ee / R);
     return B[ae] || (B[ae] = []), B[ae].push(z), B;
   }, []);
-  e.chunkArray = E;
+  e.chunkArray = A;
   const g = (S) => {
     const R = [];
     for (let B = 0; B < S; B++)
@@ -3314,8 +3322,8 @@ var Ho = {};
     return R;
   };
   e.range = g;
-  const A = (S) => [...new Set(S)];
-  e.dedupeStrs = A;
+  const E = (S) => [...new Set(S)];
+  e.dedupeStrs = E;
   const P = (S, R) => {
     const B = parseInt(S || "", 10);
     return isNaN(B) ? R : B;
@@ -3628,12 +3636,12 @@ function zy(e, t, r, o, n, i) {
       if (v) throw new TypeError("Cannot add initializers after decoration has completed");
       i.push(a(g || null));
     };
-    var E = (0, r[m])(c === "accessor" ? { get: p.get, set: p.set } : p[d], b);
+    var A = (0, r[m])(c === "accessor" ? { get: p.get, set: p.set } : p[d], b);
     if (c === "accessor") {
-      if (E === void 0) continue;
-      if (E === null || typeof E != "object") throw new TypeError("Object expected");
-      (h = a(E.get)) && (p.get = h), (h = a(E.set)) && (p.set = h), (h = a(E.init)) && n.unshift(h);
-    } else (h = a(E)) && (c === "field" ? n.unshift(h) : p[d] = h);
+      if (A === void 0) continue;
+      if (A === null || typeof A != "object") throw new TypeError("Object expected");
+      (h = a(A.get)) && (p.get = h), (h = a(A.set)) && (p.set = h), (h = a(A.init)) && n.unshift(h);
+    } else (h = a(A)) && (c === "field" ? n.unshift(h) : p[d] = h);
   }
   l && Object.defineProperty(l, o.name, p), v = !0;
 }
@@ -3810,8 +3818,8 @@ function Yy(e, t, r) {
   }
   function c(m, b) {
     o[m] && (n[m] = function(_) {
-      return new Promise(function(E, g) {
-        i.push([m, _, E, g]) > 1 || d(m, _);
+      return new Promise(function(A, g) {
+        i.push([m, _, A, g]) > 1 || d(m, _);
       });
     }, b && (n[m] = b(n[m])));
   }
@@ -4115,16 +4123,16 @@ function JD(e, t) {
       throw new TypeError("Expected Uint8Array");
     if (b.length === 0)
       return "";
-    for (var _ = 0, E = 0, g = 0, A = b.length; g !== A && b[g] === 0; )
+    for (var _ = 0, A = 0, g = 0, E = b.length; g !== E && b[g] === 0; )
       g++, _++;
-    for (var P = (A - g) * p + 1 >>> 0, S = new Uint8Array(P); g !== A; ) {
-      for (var R = b[g], B = 0, z = P - 1; (R !== 0 || B < E) && z !== -1; z--, B++)
+    for (var P = (E - g) * p + 1 >>> 0, S = new Uint8Array(P); g !== E; ) {
+      for (var R = b[g], B = 0, z = P - 1; (R !== 0 || B < A) && z !== -1; z--, B++)
         R += 256 * S[z] >>> 0, S[z] = R % c >>> 0, R = R / c >>> 0;
       if (R !== 0)
         throw new Error("Non-zero carry");
-      E = B, g++;
+      A = B, g++;
     }
-    for (var ee = P - E; ee !== P && S[ee] === 0; )
+    for (var ee = P - A; ee !== P && S[ee] === 0; )
       ee++;
     for (var ae = d.repeat(_); ee < P; ++ee)
       ae += e.charAt(S[ee]);
@@ -4137,22 +4145,22 @@ function JD(e, t) {
       return new Uint8Array();
     var _ = 0;
     if (b[_] !== " ") {
-      for (var E = 0, g = 0; b[_] === d; )
-        E++, _++;
-      for (var A = (b.length - _) * l + 1 >>> 0, P = new Uint8Array(A); b[_]; ) {
+      for (var A = 0, g = 0; b[_] === d; )
+        A++, _++;
+      for (var E = (b.length - _) * l + 1 >>> 0, P = new Uint8Array(E); b[_]; ) {
         var S = r[b.charCodeAt(_)];
         if (S === 255)
           return;
-        for (var R = 0, B = A - 1; (S !== 0 || R < g) && B !== -1; B--, R++)
+        for (var R = 0, B = E - 1; (S !== 0 || R < g) && B !== -1; B--, R++)
           S += c * P[B] >>> 0, P[B] = S % 256 >>> 0, S = S / 256 >>> 0;
         if (S !== 0)
           throw new Error("Non-zero carry");
         g = R, _++;
       }
       if (b[_] !== " ") {
-        for (var z = A - g; z !== A && P[z] === 0; )
+        for (var z = E - g; z !== E && P[z] === 0; )
           z++;
-        for (var ee = new Uint8Array(E + (A - z)), ae = E; z !== A; )
+        for (var ee = new Uint8Array(A + (E - z)), ae = A; z !== E; )
           ee[ae++] = P[z++];
         return ee;
       }
@@ -4950,7 +4958,7 @@ function sd() {
 var mf;
 function Ea() {
   return mf || (mf = 1, function(e) {
-    Object.defineProperty(e, "__esModule", { value: !0 }), e.CID = e.SHA512_HASH_CODE = e.SHA256_HASH_CODE = e.RAW_DATA_CODEC = e.CBOR_DATA_CODEC = void 0, e.multihashEquals = c, e.asMultiformatsCID = d, e.isRawCid = l, e.isDaslCid = p, e.isCborCid = h, e.checkCid = v, e.isCid = m, e.ifCid = b, e.asCid = _, e.decodeCid = E, e.parseCid = g, e.validateCidString = A, e.parseCidSafe = P, e.ensureValidCidString = S, e.isCidForBytes = R, e.createCid = B, e.cidForCbor = z, e.cidForRawBytes = ee, e.cidForRawHash = ae;
+    Object.defineProperty(e, "__esModule", { value: !0 }), e.CID = e.SHA512_HASH_CODE = e.SHA256_HASH_CODE = e.RAW_DATA_CODEC = e.CBOR_DATA_CODEC = void 0, e.multihashEquals = c, e.asMultiformatsCID = d, e.isRawCid = l, e.isDaslCid = p, e.isCborCid = h, e.checkCid = v, e.isCid = m, e.ifCid = b, e.asCid = _, e.decodeCid = A, e.parseCid = g, e.validateCidString = E, e.parseCidSafe = P, e.ensureValidCidString = S, e.isCidForBytes = R, e.createCid = B, e.cidForCbor = z, e.cidForRawBytes = ee, e.cidForRawHash = ae;
     const t = rs;
     Object.defineProperty(e, "CID", { enumerable: !0, get: function() {
       return t.CID;
@@ -5001,7 +5009,7 @@ function Ea() {
         return O;
       throw new Error(`Invalid ${q != null && q.flavor ? `${q.flavor} CID` : "CID"} "${O}"`);
     }
-    function E(O, q) {
+    function A(O, q) {
       const se = t.CID.decode(O);
       return _(se, q);
     }
@@ -5009,7 +5017,7 @@ function Ea() {
       const se = t.CID.parse(O);
       return _(se, q);
     }
-    function A(O, q) {
+    function E(O, q) {
       var se;
       return ((se = P(O, q)) == null ? void 0 : se.toString()) === O;
     }
@@ -5021,7 +5029,7 @@ function Ea() {
       }
     }
     function S(O, q) {
-      if (!A(O, q))
+      if (!E(O, q))
         throw new Error(`Invalid CID string "${O}"`);
     }
     async function R(O, q) {
@@ -5348,83 +5356,83 @@ function hT() {
   so.GraphemeCategory = t.GraphemeCategory;
   var r = mT();
   const o = 65535;
-  function* n(E) {
-    let g = E.codePointAt(0);
+  function* n(A) {
+    let g = A.codePointAt(0);
     if (g == null) return;
-    let A = g <= o ? 1 : 2, P = E.length, S = b(g), R = 0, B = 0, z = !1, ee = !1, ae = !1, Me = 0, O = S, q = g;
-    for (; A < P; ) {
+    let E = g <= o ? 1 : 2, P = A.length, S = b(g), R = 0, B = 0, z = !1, ee = !1, ae = !1, Me = 0, O = S, q = g;
+    for (; E < P; ) {
       g = /** @type {number} */
-      E.codePointAt(A), R = b(g);
+      A.codePointAt(E), R = b(g);
       let se = !0;
       S === 1 ? se = R !== 6 : S === 2 || S === 6 || R === 1 || R === 2 || R === 6 ? se = !0 : R === 3 || R === 14 || R === 11 || S === 9 ? se = !1 : S === 14 && R === 4 ? se = !z : S === 10 && R === 10 ? se = B++ % 2 === 1 : S === 5 ? se = !(R === 5 || R === 13 || R === 7 || R === 8) : ((S === 7 || S === 13) && (R === 13 || R === 12) || (S === 8 || S === 12) && R === 12 || R === 0 && ee && ae && _(g)) && (se = !1), se ? (yield {
-        segment: E.slice(Me, A),
+        segment: A.slice(Me, E),
         index: Me,
-        input: E,
+        input: A,
         _hd: q,
         _catBegin: O,
         _catEnd: S
-      }, z = !1, B = 0, Me = A, O = R, q = g) : R === 14 && (S === 3 || S === 4) ? z = !0 : g >= 2325 && (!ee && S === 0 && (ee = _(q)), ee && R === 3 ? ae = ae || g === 2381 || g === 2509 || g === 2637 || g === 2765 || g === 2893 || g === 3149 || g === 3405 : ae = !1), A += g <= o ? 1 : 2, S = R;
+      }, z = !1, B = 0, Me = E, O = R, q = g) : R === 14 && (S === 3 || S === 4) ? z = !0 : g >= 2325 && (!ee && S === 0 && (ee = _(q)), ee && R === 3 ? ae = ae || g === 2381 || g === 2509 || g === 2637 || g === 2765 || g === 2893 || g === 3149 || g === 3405 : ae = !1), E += g <= o ? 1 : 2, S = R;
     }
     Me < P && (yield {
-      segment: E.slice(Me),
+      segment: A.slice(Me),
       index: Me,
-      input: E,
+      input: A,
       _hd: q,
       _catBegin: O,
       _catEnd: S
     });
   }
-  function i(E) {
+  function i(A) {
     let g = 0;
-    for (let A of n(E)) g += 1;
+    for (let E of n(A)) g += 1;
     return g;
   }
-  function* a(E) {
-    for (let g of n(E)) yield g.segment;
+  function* a(A) {
+    for (let g of n(A)) yield g.segment;
   }
   const c = new Uint8Array(6080), d = 128, l = 12287, p = new Uint8Array(1536), h = 40960, v = 44031, m = (() => {
-    let E = 0;
+    let A = 0;
     for (; ; ) {
-      let [g, A, P] = t.grapheme_ranges[E];
+      let [g, E, P] = t.grapheme_ranges[A];
       if (g > v) break;
-      if (E++, !(A < d || g > l && A < h))
-        for (let S = g; S <= A; S++) {
+      if (A++, !(E < d || g > l && E < h))
+        for (let S = g; S <= E; S++) {
           let R, B = 0;
           S <= l ? (R = c, B = S - d >> 1) : (R = p, B = S - h >> 1), R[B] = S & 1 ? R[B] & 15 | P << 4 : R[B] & 240 | P;
         }
     }
-    return E;
+    return A;
   })();
-  function b(E) {
-    if (E < d)
-      return E >= 32 ? 0 : E === 10 ? 6 : E === 13 ? 1 : 2;
-    if (E <= l) {
-      let A = c[E - d >> 1];
+  function b(A) {
+    if (A < d)
+      return A >= 32 ? 0 : A === 10 ? 6 : A === 13 ? 1 : 2;
+    if (A <= l) {
+      let E = c[A - d >> 1];
       return (
         /** @type {GraphemeCategoryNum} */
-        E & 1 ? A >> 4 : A & 15
+        A & 1 ? E >> 4 : E & 15
       );
     }
-    if (E < h)
-      return E < 12336 ? E >= 12330 ? 3 : 0 : E < 12443 ? E === 12336 || E === 12349 ? 4 : E >= 12441 ? 3 : 0 : E === 12951 || E === 12953 ? 4 : 0;
-    if (E <= v) {
-      let A = p[E - h >> 1];
+    if (A < h)
+      return A < 12336 ? A >= 12330 ? 3 : 0 : A < 12443 ? A === 12336 || A === 12349 ? 4 : A >= 12441 ? 3 : 0 : A === 12951 || A === 12953 ? 4 : 0;
+    if (A <= v) {
+      let E = p[A - h >> 1];
       return (
         /** @type {GraphemeCategoryNum} */
-        E & 1 ? A >> 4 : A & 15
+        A & 1 ? E >> 4 : E & 15
       );
     }
-    if (E <= 55203)
-      return (E - 44032) % 28 === 0 ? 7 : 8;
-    if (E <= 55295)
-      return E <= 55238 ? E >= 55216 ? 13 : 0 : E >= 55243 ? 12 : 0;
-    if (E < 65024)
-      return E === 64286 ? 3 : 0;
-    let g = (0, e.findUnicodeRangeIndex)(E, t.grapheme_ranges, m);
+    if (A <= 55203)
+      return (A - 44032) % 28 === 0 ? 7 : 8;
+    if (A <= 55295)
+      return A <= 55238 ? A >= 55216 ? 13 : 0 : A >= 55243 ? 12 : 0;
+    if (A < 65024)
+      return A === 64286 ? 3 : 0;
+    let g = (0, e.findUnicodeRangeIndex)(A, t.grapheme_ranges, m);
     return g < 0 ? 0 : t.grapheme_ranges[g][2];
   }
-  function _(E) {
-    return (0, e.findUnicodeRangeIndex)(E, r.consonant_ranges) >= 0;
+  function _(A) {
+    return (0, e.findUnicodeRangeIndex)(A, r.consonant_ranges) >= 0;
   }
   return so;
 }
@@ -5591,17 +5599,17 @@ function ET() {
     return JSON.stringify(l(m));
   }
   function i(m, b = { strict: !1 }) {
-    return JSON.parse(m, function(_, E) {
-      switch (typeof E) {
+    return JSON.parse(m, function(_, A) {
+      switch (typeof A) {
         case "object":
-          return E === null ? null : Array.isArray(E) ? E : v(E, b) ?? E;
+          return A === null ? null : Array.isArray(A) ? A : v(A, b) ?? A;
         case "number":
-          if (Number.isSafeInteger(E))
-            return E;
+          if (Number.isSafeInteger(A))
+            return A;
           if (b.strict)
-            throw new TypeError(`Invalid non-integer number: ${E}`);
+            throw new TypeError(`Invalid non-integer number: ${A}`);
         default:
-          return E;
+          return A;
       }
     });
   }
@@ -5623,23 +5631,23 @@ function ET() {
   }
   function c(m, b) {
     let _;
-    for (let E = 0; E < m.length; E++) {
-      const g = m[E], A = a(g, b);
-      A !== g && (_ ?? (_ = Array.from(m)), _[E] = A);
+    for (let A = 0; A < m.length; A++) {
+      const g = m[A], E = a(g, b);
+      E !== g && (_ ?? (_ = Array.from(m)), _[A] = E);
     }
     return _ ?? m;
   }
   function d(m, b) {
     let _;
-    for (const [E, g] of Object.entries(m)) {
-      if (E === "__proto__")
+    for (const [A, g] of Object.entries(m)) {
+      if (A === "__proto__")
         throw new TypeError("Invalid key: __proto__");
       if (g === void 0) {
-        _ ?? (_ = { ...m }), delete _[E];
+        _ ?? (_ = { ...m }), delete _[A];
         continue;
       }
-      const A = a(g, b);
-      A !== g && (_ ?? (_ = { ...m }), _[E] = A);
+      const E = a(g, b);
+      E !== g && (_ ?? (_ = { ...m }), _[A] = E);
     }
     return _ ?? m;
   }
@@ -5658,22 +5666,22 @@ function ET() {
   function p(m) {
     let b;
     for (let _ = 0; _ < m.length; _++) {
-      const E = m[_], g = l(E);
-      g !== E && (b ?? (b = Array.from(m)), b[_] = g);
+      const A = m[_], g = l(A);
+      g !== A && (b ?? (b = Array.from(m)), b[_] = g);
     }
     return b ?? m;
   }
   function h(m) {
     let b;
-    for (const [_, E] of Object.entries(m)) {
+    for (const [_, A] of Object.entries(m)) {
       if (_ === "__proto__")
         throw new TypeError("Invalid key: __proto__");
-      if (E === void 0) {
+      if (A === void 0) {
         b ?? (b = { ...m }), delete b[_];
         continue;
       }
-      const g = l(E);
-      g !== E && (b ?? (b = { ...m }), b[_] = g);
+      const g = l(A);
+      g !== A && (b ?? (b = { ...m }), b[_] = g);
     }
     return b ?? m;
   }
@@ -5945,8 +5953,8 @@ function ud() {
       return new e(b);
     }
     static create(b, _) {
-      const E = [...b.split(".").reverse(), _].join(".");
-      return new e(E);
+      const A = [...b.split(".").reverse(), _].join(".");
+      return new e(A);
     }
     static isValid(b) {
       return o(b);
@@ -6096,8 +6104,8 @@ function TT() {
         throw new Error("ATURI fragment must be non-empty and start with slash");
       if (c.includes("#", d + 1))
         throw new Error('ATURI can have at most one "#", separating fragment out');
-      const E = c.slice(d + 1);
-      if (!/^\/[a-zA-Z0-9._~:@!$&')(*+,;=%[\]/-]*$/.test(E))
+      const A = c.slice(d + 1);
+      if (!/^\/[a-zA-Z0-9._~:@!$&')(*+,;=%[\]/-]*$/.test(A))
         throw new Error("Disallowed characters in ATURI fragment (ASCII)");
     }
     const l = d === -1 ? c : c.slice(0, d);
@@ -6110,15 +6118,15 @@ function TT() {
     const p = l.indexOf("/", 5), h = p === -1 ? l.slice(5) : l.slice(5, p);
     try {
       (0, e.ensureValidAtIdentifier)(h);
-    } catch (E) {
-      throw new Error("ATURI authority must be a valid handle or DID", { cause: E });
+    } catch (A) {
+      throw new Error("ATURI authority must be a valid handle or DID", { cause: A });
     }
     const v = p === -1 ? -1 : p + 1, m = v === -1 ? -1 : l.indexOf("/", v);
     if (v !== -1) {
-      const E = m === -1 ? l.slice(v) : l.slice(v, m);
-      if (E.length === 0)
+      const A = m === -1 ? l.slice(v) : l.slice(v, m);
+      if (A.length === 0)
         throw new Error("ATURI can not have a slash after authority without a path segment");
-      if (!(0, o.isValidNsid)(E))
+      if (!(0, o.isValidNsid)(A))
         throw new Error("ATURI requires first path segment (if supplied) to be valid NSID");
     }
     const b = m === -1 ? -1 : m + 1, _ = b === -1 ? -1 : l.indexOf("/", b);
@@ -6270,74 +6278,74 @@ function OT() {
   class e extends Error {
   }
   ge.InvalidDatetimeError = e;
-  function t(A) {
-    const P = g(A);
+  function t(E) {
+    const P = g(E);
     if (!P.success)
       throw new e(P.message);
   }
-  function r(A) {
-    return t(A), A;
+  function r(E) {
+    return t(E), E;
   }
-  function o(A) {
-    return g(A).success;
+  function o(E) {
+    return g(E).success;
   }
-  function n(A) {
-    return o(A) ? A : void 0;
+  function n(E) {
+    return o(E) ? E : void 0;
   }
-  function i(A) {
-    const P = E(A);
+  function i(E) {
+    const P = A(E);
     if (!P.success)
       throw new e(P.message);
   }
-  function a(A) {
-    return i(A), A;
+  function a(E) {
+    return i(E), E;
   }
-  function c(A) {
-    return E(A).success;
+  function c(E) {
+    return A(E).success;
   }
-  function d(A) {
-    return c(A) ? A : void 0;
+  function d(E) {
+    return c(E) ? E : void 0;
   }
   function l() {
     return p(/* @__PURE__ */ new Date());
   }
-  function p(A) {
-    return r(A).toISOString();
+  function p(E) {
+    return r(E).toISOString();
   }
-  function h(A) {
-    const P = new Date(A);
+  function h(E) {
+    const P = new Date(E);
     if (o(P))
       return P.toISOString();
-    if (isNaN(P.getTime()) && !/.*(([+-]\d\d:?\d\d)|[a-zA-Z])$/.test(A)) {
-      const S = /* @__PURE__ */ new Date(`${A}Z`);
+    if (isNaN(P.getTime()) && !/.*(([+-]\d\d:?\d\d)|[a-zA-Z])$/.test(E)) {
+      const S = /* @__PURE__ */ new Date(`${E}Z`);
       if (o(S))
         return S.toISOString();
     }
     throw new e("datetime did not parse as any timestamp format");
   }
-  function v(A) {
+  function v(E) {
     try {
-      return h(A);
+      return h(E);
     } catch {
       return "1970-01-01T00:00:00.000Z";
     }
   }
-  const m = (A) => ({ success: !1, message: A }), b = (A) => ({ success: !0, value: A }), _ = /^(?<full_year>[0-9]{4})-(?<date_month>0[1-9]|1[012])-(?<date_mday>[0-2][0-9]|3[01])T(?<time_hour>[0-1][0-9]|2[0-3]):(?<time_minute>[0-5][0-9]):(?<time_second>[0-5][0-9]|60)(?<time_secfrac>\.[0-9]+)?(?<time_offset>Z|(?<time_numoffset>[+-](?:[0-1][0-9]|2[0-3]):[0-5][0-9]))$/;
-  function E(A) {
-    if (typeof A != "string")
+  const m = (E) => ({ success: !1, message: E }), b = (E) => ({ success: !0, value: E }), _ = /^(?<full_year>[0-9]{4})-(?<date_month>0[1-9]|1[012])-(?<date_mday>[0-2][0-9]|3[01])T(?<time_hour>[0-1][0-9]|2[0-3]):(?<time_minute>[0-5][0-9]):(?<time_second>[0-5][0-9]|60)(?<time_secfrac>\.[0-9]+)?(?<time_offset>Z|(?<time_numoffset>[+-](?:[0-1][0-9]|2[0-3]):[0-5][0-9]))$/;
+  function A(E) {
+    if (typeof E != "string")
       return m("datetime must be a string");
-    if (A.length > 64)
+    if (E.length > 64)
       return m("datetime is too long (64 chars max)");
-    if (A.endsWith("-00:00"))
+    if (E.endsWith("-00:00"))
       return m('datetime can not use "-00:00" for UTC timezone');
-    if (!_.test(A))
+    if (!_.test(E))
       return m("datetime is not in a valid format (must match RFC 3339 & ISO 8601 with 'Z' or ±hh:mm timezone)");
-    const P = new Date(A);
+    const P = new Date(E);
     return g(P);
   }
-  function g(A) {
-    const P = A.getUTCFullYear();
-    return Number.isNaN(P) ? m("datetime did not parse as ISO 8601") : P < 0 ? m("datetime normalized to a negative time") : P > 9999 ? m("datetime year is too far in the future") : P < 10 ? m("datetime so close to year zero not allowed") : b(A);
+  function g(E) {
+    const P = E.getUTCFullYear();
+    return Number.isNaN(P) ? m("datetime did not parse as ISO 8601") : P < 0 ? m("datetime normalized to a negative time") : P > 9999 ? m("datetime year is too far in the future") : P < 10 ? m("datetime so close to year zero not allowed") : b(E);
   }
   return ge;
 }
@@ -6418,17 +6426,17 @@ var Tm = {};
   const t = Br, r = (g) => e.didDocument.safeParse(g).success;
   e.isValidDidDoc = r;
   const o = (g) => {
-    const A = g.id;
-    if (typeof A != "string")
+    const E = g.id;
+    if (typeof E != "string")
       throw new Error("No `id` on document");
-    return A;
+    return E;
   };
   e.getDid = o;
   const n = (g) => {
-    const A = g.alsoKnownAs;
-    if (A)
-      for (let P = 0; P < A.length; P++) {
-        const S = A[P];
+    const E = g.alsoKnownAs;
+    if (E)
+      for (let P = 0; P < E.length; P++) {
+        const S = E[P];
         if (S.startsWith("at://"))
           return S.slice(5);
       }
@@ -6436,8 +6444,8 @@ var Tm = {};
   e.getHandle = n;
   const i = (g) => (0, e.getVerificationMaterial)(g, "atproto");
   e.getSigningKey = i;
-  const a = (g, A) => {
-    const P = v(g, "verificationMethod", `#${A}`);
+  const a = (g, E) => {
+    const P = v(g, "verificationMethod", `#${E}`);
     if (P && P.publicKeyMultibase)
       return {
         type: P.type,
@@ -6446,9 +6454,9 @@ var Tm = {};
   };
   e.getVerificationMaterial = a;
   const c = (g) => {
-    const A = (0, e.getSigningKey)(g);
-    if (A)
-      return `did:key:${A.publicKeyMultibase}`;
+    const E = (0, e.getSigningKey)(g);
+    if (E)
+      return `did:key:${E.publicKeyMultibase}`;
   };
   e.getSigningDidKey = c;
   const d = (g) => (0, e.getServiceEndpoint)(g, {
@@ -6466,14 +6474,14 @@ var Tm = {};
     type: "BskyNotificationService"
   });
   e.getNotifEndpoint = p;
-  const h = (g, A) => {
-    const P = v(g, "service", A.id);
-    if (P && !(A.type && P.type !== A.type) && typeof P.serviceEndpoint == "string")
+  const h = (g, E) => {
+    const P = v(g, "service", E.id);
+    if (P && !(E.type && P.type !== E.type) && typeof P.serviceEndpoint == "string")
       return m(P.serviceEndpoint);
   };
   e.getServiceEndpoint = h;
-  function v(g, A, P) {
-    const S = g[A];
+  function v(g, E, P) {
+    const S = g[E];
     if (S)
       for (let R = 0; R < S.length; R++) {
         const B = S[R], z = B.id;
@@ -6500,7 +6508,7 @@ var Tm = {};
     controller: t.z.string(),
     publicKeyJwk: t.z.record(t.z.string(), t.z.unknown()).optional(),
     publicKeyMultibase: t.z.string().optional()
-  }), E = t.z.object({
+  }), A = t.z.object({
     id: t.z.string(),
     type: t.z.string(),
     serviceEndpoint: t.z.union([t.z.string(), t.z.record(t.z.unknown())])
@@ -6514,7 +6522,7 @@ var Tm = {};
     alsoKnownAs: t.z.array(t.z.string()).optional(),
     verificationMethod: t.z.array(_).optional(),
     authentication: t.z.array(t.z.union([t.z.string(), _])).optional(),
-    service: t.z.array(E).optional()
+    service: t.z.array(A).optional()
   });
 })(Tm);
 (function(e) {
@@ -6941,16 +6949,16 @@ var Ca = {}, Je = {}, Im = {};
       var m = new RegExp("^([0-1]|2(?=([0-3])|4" + h + "00))[0-9]" + h + "[0-5][0-9](" + h + "([0-5]|6(?=0))[0-9])?(.[0-9]{1,9})?$");
       if (!v || !/[Z+\-]/.test(p)) return m.test(p);
       if (/Z$/.test(p)) return m.test(p.replace("Z", ""));
-      var b = p.includes("+"), _ = p.split(/[+-]/), E = _[0], g = _[1];
-      return m.test(E) && function(A, P, S) {
-        return S === void 0 && (S = ":"), new RegExp(P ? "^(0(?!(2" + S + "4)|0" + S + "3)|1(?=([0-1]|2(?=" + S + "[04])|[34](?=" + S + "0))))([03469](?=" + S + "[03])|[17](?=" + S + "0)|2(?=" + S + "[04])|5(?=" + S + "[034])|8(?=" + S + "[04]))" + S + "([03](?=0)|4(?=5))[05]$" : "^(0(?=[^0])|1(?=[0-2]))([39](?=" + S + "[03])|[0-24-8](?=" + S + "00))" + S + "[03]0$").test(A);
+      var b = p.includes("+"), _ = p.split(/[+-]/), A = _[0], g = _[1];
+      return m.test(A) && function(E, P, S) {
+        return S === void 0 && (S = ":"), new RegExp(P ? "^(0(?!(2" + S + "4)|0" + S + "3)|1(?=([0-1]|2(?=" + S + "[04])|[34](?=" + S + "0))))([03469](?=" + S + "[03])|[17](?=" + S + "0)|2(?=" + S + "[04])|5(?=" + S + "[034])|8(?=" + S + "[04]))" + S + "([03](?=0)|4(?=5))[05]$" : "^(0(?=[^0])|1(?=[0-2]))([39](?=" + S + "[03])|[0-24-8](?=" + S + "00))" + S + "[03]0$").test(E);
       }(g, b, n(g));
     }
     function a(p) {
       var h = p.split("T"), v = h[0], m = h[1], b = o(v, n(v));
       if (!m) return !1;
-      var _, E = (_ = m.match(/([^Z+\-\d])(?=\d+\1)/), Array.isArray(_) ? _[0] : "");
-      return b && i(m, E, !0);
+      var _, A = (_ = m.match(/([^Z+\-\d])(?=\d+\1)/), Array.isArray(_) ? _[0] : "");
+      return b && i(m, A, !0);
     }
     function c(p, h) {
       return h === void 0 && (h = "-"), new RegExp("^[0-9]{4}" + h + "(0(?=[^0])|1(?=[0-2]))[0-9]$").test(p);
@@ -28215,8 +28223,8 @@ var s = {}, I = {}, vo = {}, Ie = {}, Pa = {};
         // Extract status code from "http-errors" like errors
         (v == null ? void 0 : v.statusCode) ?? (v == null ? void 0 : v.status) ?? // Use the status code from the response object as fallback
         (m == null ? void 0 : m.status)
-      ), _ = typeof b == "number" ? o(b) : h ?? r.Unknown, E = (v == null ? void 0 : v.message) ?? String(p), g = m ? Object.fromEntries(m.headers.entries()) : void 0;
-      return new c(_, void 0, E, g, { cause: p });
+      ), _ = typeof b == "number" ? o(b) : h ?? r.Unknown, A = (v == null ? void 0 : v.message) ?? String(p), g = m ? Object.fromEntries(m.headers.entries()) : void 0;
+      return new c(_, void 0, A, g, { cause: p });
     }
   }
   e.XRPCError = c;
@@ -28486,10 +28494,10 @@ class J1 {
       signal: n == null ? void 0 : n.signal
     };
     try {
-      const h = await this.fetchHandler.call(void 0, a, p), v = h.status, m = Object.fromEntries(h.headers.entries()), b = await h.arrayBuffer(), _ = (0, uo.httpResponseBodyParse)(h.headers.get("content-type"), b), E = (0, Vo.httpResponseCodeToEnum)(v);
-      if (E !== Vo.ResponseType.Success) {
-        const { error: g = void 0, message: A = void 0 } = _ && (0, uo.isErrorResponseBody)(_) ? _ : {};
-        throw new Vo.XRPCError(E, g, A, m);
+      const h = await this.fetchHandler.call(void 0, a, p), v = h.status, m = Object.fromEntries(h.headers.entries()), b = await h.arrayBuffer(), _ = (0, uo.httpResponseBodyParse)(h.headers.get("content-type"), b), A = (0, Vo.httpResponseCodeToEnum)(v);
+      if (A !== Vo.ResponseType.Success) {
+        const { error: g = void 0, message: E = void 0 } = _ && (0, uo.isErrorResponseBody)(_) ? _ : {};
+        throw new Vo.XRPCError(A, g, E, m);
       }
       try {
         this.lex.assertValidXrpcOutput(t, _);
@@ -40372,17 +40380,17 @@ function $C({ mutedWords: e, text: t, facets: r, outlineTags: o, languages: n, a
       if (!(h.length > _.length) && new RegExp("\\p{P}+", "u").test(_)) {
         if (/[/]+/.test(_))
           continue e;
-        const E = _.replace(new RegExp("\\p{P}+", "gu"), " ");
-        if (E === h) {
+        const A = _.replace(new RegExp("\\p{P}+", "gu"), " ");
+        if (A === h) {
           d.push({ word: p, predicate: b });
           continue e;
         }
-        if (E.replace(/\s/gu, "") === h) {
+        if (A.replace(/\s/gu, "") === h) {
           d.push({ word: p, predicate: b });
           continue e;
         }
-        const A = _.split(new RegExp("\\p{P}+", "u"));
-        for (const P of A)
+        const E = _.split(new RegExp("\\p{P}+", "u"));
+        for (const P of E)
           if (P === h) {
             d.push({ word: p, predicate: b });
             continue e;
@@ -40633,7 +40641,7 @@ function wte(e) {
   return (((t = e.policies) == null ? void 0 : t.labelValueDefinitions) || []).filter((0, gte.asPredicate)(zp.ComAtprotoLabelDefs.validateLabelValueDefinition)).map((r) => LC(r, e.creator.did));
 }
 (function(e) {
-  Object.defineProperty(e, "__esModule", { value: !0 }), e.interpretLabelValueDefinitions = e.interpretLabelValueDefinition = e.matchMuteWords = e.hasMutedWord = e.ModerationDecision = e.ModerationUI = void 0, e.moderateProfile = v, e.moderatePost = m, e.moderateNotification = b, e.moderateFeedGenerator = _, e.moderateUserList = E;
+  Object.defineProperty(e, "__esModule", { value: !0 }), e.interpretLabelValueDefinitions = e.interpretLabelValueDefinition = e.matchMuteWords = e.hasMutedWord = e.ModerationDecision = e.ModerationUI = void 0, e.moderateProfile = v, e.moderatePost = m, e.moderateNotification = b, e.moderateFeedGenerator = _, e.moderateUserList = A;
   const t = St, r = oo, o = Lp, n = Vp, i = qp, a = no, c = Np;
   var d = Ns;
   Object.defineProperty(e, "ModerationUI", { enumerable: !0, get: function() {
@@ -40655,20 +40663,20 @@ function wte(e) {
   } }), Object.defineProperty(e, "interpretLabelValueDefinitions", { enumerable: !0, get: function() {
     return h.interpretLabelValueDefinitions;
   } });
-  function v(g, A) {
-    return t.ModerationDecision.merge((0, r.decideAccount)(g, A), (0, a.decideProfile)(g, A));
+  function v(g, E) {
+    return t.ModerationDecision.merge((0, r.decideAccount)(g, E), (0, a.decideProfile)(g, E));
   }
-  function m(g, A) {
-    return (0, i.decidePost)(g, A);
+  function m(g, E) {
+    return (0, i.decidePost)(g, E);
   }
-  function b(g, A) {
-    return (0, n.decideNotification)(g, A);
+  function b(g, E) {
+    return (0, n.decideNotification)(g, E);
   }
-  function _(g, A) {
-    return (0, o.decideFeedGenerator)(g, A);
+  function _(g, E) {
+    return (0, o.decideFeedGenerator)(g, E);
   }
-  function E(g, A) {
-    return (0, c.decideUserList)(g, A);
+  function A(g, E) {
+    return (0, c.decideUserList)(g, E);
   }
 })(Bp);
 var vc = {};
@@ -42334,16 +42342,16 @@ class ya extends Gte.AtpAgent {
 }
 kc.BskyAgent = ya;
 (function(e) {
-  var t = $ && $.__createBinding || (Object.create ? function(E, g, A, P) {
-    P === void 0 && (P = A);
-    var S = Object.getOwnPropertyDescriptor(g, A);
+  var t = $ && $.__createBinding || (Object.create ? function(A, g, E, P) {
+    P === void 0 && (P = E);
+    var S = Object.getOwnPropertyDescriptor(g, E);
     (!S || ("get" in S ? !g.__esModule : S.writable || S.configurable)) && (S = { enumerable: !0, get: function() {
-      return g[A];
-    } }), Object.defineProperty(E, P, S);
-  } : function(E, g, A, P) {
-    P === void 0 && (P = A), E[P] = g[A];
-  }), r = $ && $.__exportStar || function(E, g) {
-    for (var A in E) A !== "default" && !Object.prototype.hasOwnProperty.call(g, A) && t(g, E, A);
+      return g[E];
+    } }), Object.defineProperty(A, P, S);
+  } : function(A, g, E, P) {
+    P === void 0 && (P = E), A[P] = g[E];
+  }), r = $ && $.__exportStar || function(A, g) {
+    for (var E in A) E !== "default" && !Object.prototype.hasOwnProperty.call(g, E) && t(g, A, E);
   };
   Object.defineProperty(e, "__esModule", { value: !0 }), e.lexicons = e.default = e.BskyAgent = e.CredentialSession = e.AtpAgent = e.Agent = e.LABELS = e.DEFAULT_LABEL_SETTINGS = e.asPredicate = e.schemas = e.parseLanguage = e.stringifyLex = e.lexToJson = e.jsonToLex = e.jsonStringToLex = e.BlobRef = e.AtUri = void 0;
   const o = ho, n = y;
@@ -42573,7 +42581,7 @@ async function sre(e, t) {
       return {
         success: !1,
         platform: "lesswrong",
-        error: v.errors.map((E) => E.message).join(", ")
+        error: v.errors.map((A) => A.message).join(", ")
       };
     const m = (l = (d = v.data) == null ? void 0 : d.createComment) == null ? void 0 : l.data, b = (p = m == null ? void 0 : m.user) == null ? void 0 : p.slug;
     return { success: !0, platform: "lesswrong", url: b ? `https://www.lesswrong.com/users/${b}?tab=shortform` : void 0 };
@@ -42598,27 +42606,27 @@ const are = (my = window.Blueprint) == null ? void 0 : my.Core, { Button: cre, P
     const g = /* @__PURE__ */ new Set();
     return r === "all" ? (Zp(t) && g.add("twitter"), py(t) && g.add("bluesky"), fy(t) && g.add("lesswrong")) : g.add(r), g;
   }), h = yo((g) => {
-    p((A) => {
-      const P = new Set(A);
+    p((E) => {
+      const P = new Set(E);
       return P.has(g) ? P.delete(g) : P.add(g), P;
     });
   }, []), v = Ec(() => {
     const g = [];
     if (n.length === 0 && g.push("No child blocks found. Add content as child blocks."), l.has("twitter")) {
-      const A = nP(n);
-      A.valid || A.errors.forEach((P) => g.push(`Twitter: ${P.reason}`));
+      const E = nP(n);
+      E.valid || E.errors.forEach((P) => g.push(`Twitter: ${P.reason}`));
     }
     if (l.has("bluesky")) {
-      const A = Kte(n);
-      A.valid || A.errors.forEach((P) => g.push(`Bluesky: ${P.reason}`));
+      const E = Kte(n);
+      E.valid || E.errors.forEach((P) => g.push(`Bluesky: ${P.reason}`));
     }
     return { valid: g.length === 0, errors: g };
   }, [n, l]), m = yo(async () => {
     var B;
     a(!0), d([]);
-    const g = { blocks: n }, A = [];
-    l.has("twitter") && A.push(sP(g, t)), l.has("bluesky") && A.push(Xte(g, t)), l.has("lesswrong") && A.push(sre(g, t));
-    const P = await Promise.allSettled(A), S = [];
+    const g = { blocks: n }, E = [];
+    l.has("twitter") && E.push(sP(g, t)), l.has("bluesky") && E.push(Xte(g, t)), l.has("lesswrong") && E.push(sre(g, t));
+    const P = await Promise.allSettled(E), S = [];
     for (const z of P)
       z.status === "fulfilled" ? S.push(z.value) : S.push({ success: !1, platform: "twitter", error: ((B = z.reason) == null ? void 0 : B.message) || "Unknown error" });
     d(S), a(!1);
@@ -42635,7 +42643,7 @@ const are = (my = window.Blueprint) == null ? void 0 : my.Core, { Button: cre, P
   }, [n, l, t, e]), b = Ec(() => {
     const g = [];
     return Zp(t) && g.push("twitter"), py(t) && g.push("bluesky"), fy(t) && g.push("lesswrong"), g;
-  }, [t]), _ = c.length > 0 && !i, E = _ && c.every((g) => g.success);
+  }, [t]), _ = c.length > 0 && !i, A = _ && c.every((g) => g.success);
   return /* @__PURE__ */ Y.createElement("div", { style: { padding: 16, maxWidth: 360, minWidth: 280 } }, b.length === 0 ? /* @__PURE__ */ Y.createElement("div", { style: { color: "#888" } }, "No platforms configured. Open extension settings to add credentials.") : /* @__PURE__ */ Y.createElement(Y.Fragment, null, r === "all" && /* @__PURE__ */ Y.createElement("div", { style: { marginBottom: 12 } }, /* @__PURE__ */ Y.createElement("div", { style: { fontWeight: 600, marginBottom: 4, fontSize: 13 } }, "Publish to:"), b.map((g) => /* @__PURE__ */ Y.createElement(
     ure,
     {
@@ -42645,7 +42653,7 @@ const are = (my = window.Blueprint) == null ? void 0 : my.Core, { Button: cre, P
       label: /* @__PURE__ */ Y.createElement("span", { style: { display: "inline-flex", alignItems: "center" } }, /* @__PURE__ */ Y.createElement(zC, { platform: g }), Yc[g]),
       style: { marginBottom: 2 }
     }
-  ))), /* @__PURE__ */ Y.createElement("div", { style: { marginBottom: 8, fontSize: 12, color: "#666" } }, n.length, " block", n.length !== 1 ? "s" : "", " to publish", l.has("twitter") && n.length > 0 && ` (thread of ${n.length} tweet${n.length !== 1 ? "s" : ""})`), !v.valid && /* @__PURE__ */ Y.createElement("div", { style: { marginBottom: 8, padding: 8, background: "#fff3f3", borderRadius: 4, fontSize: 12 } }, v.errors.map((g, A) => /* @__PURE__ */ Y.createElement("div", { key: A, style: { color: "red" } }, g))), !_ && /* @__PURE__ */ Y.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ Y.createElement(
+  ))), /* @__PURE__ */ Y.createElement("div", { style: { marginBottom: 8, fontSize: 12, color: "#666" } }, n.length, " block", n.length !== 1 ? "s" : "", " to publish", l.has("twitter") && n.length > 0 && ` (thread of ${n.length} tweet${n.length !== 1 ? "s" : ""})`), !v.valid && /* @__PURE__ */ Y.createElement("div", { style: { marginBottom: 8, padding: 8, background: "#fff3f3", borderRadius: 4, fontSize: 12 } }, v.errors.map((g, E) => /* @__PURE__ */ Y.createElement("div", { key: E, style: { color: "red" } }, g))), !_ && /* @__PURE__ */ Y.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ Y.createElement(
     cre,
     {
       intent: "primary",
@@ -42653,7 +42661,7 @@ const are = (my = window.Blueprint) == null ? void 0 : my.Core, { Button: cre, P
       onClick: m,
       disabled: !v.valid || i || l.size === 0
     }
-  ), i && /* @__PURE__ */ Y.createElement(lre, { size: 20 })), c.length > 0 && /* @__PURE__ */ Y.createElement("div", { style: { marginTop: 8 } }, c.map((g, A) => /* @__PURE__ */ Y.createElement(pre, { key: A, result: g })), E && /* @__PURE__ */ Y.createElement("div", { style: { marginTop: 8, color: "green", fontSize: 12 } }, "All posts published successfully!"))));
+  ), i && /* @__PURE__ */ Y.createElement(lre, { size: 20 })), c.length > 0 && /* @__PURE__ */ Y.createElement("div", { style: { marginTop: 8 } }, c.map((g, E) => /* @__PURE__ */ Y.createElement(pre, { key: E, result: g })), A && /* @__PURE__ */ Y.createElement("div", { style: { marginTop: 8, color: "green", fontSize: 12 } }, "All posts published successfully!"))));
 };
 function yre(e) {
   var r;
@@ -42673,12 +42681,12 @@ const mre = ({ childrenRef: e, unmount: t, ...r }) => {
       )
     ),
     [e]
-  ), [b, _] = Oi(v), E = Gp(m()), g = yo(
+  ), [b, _] = Oi(v), A = Gp(m()), g = yo(
     (R) => {
       const B = R.target;
       if (B.tagName === "TEXTAREA") {
         const z = B, ee = yre(z);
-        E.current = m(), _(
+        A.current = m(), _(
           v().map((ae) => {
             if (ae.uid === ee) {
               const Me = Kp(z.value), O = l ? [...Me].length : Me.length;
@@ -42695,18 +42703,18 @@ const mre = ({ childrenRef: e, unmount: t, ...r }) => {
     if (e)
       return e.addEventListener("input", g), () => e.removeEventListener("input", g);
   }, [e, g]), Ac(() => {
-    E.current = m(), _(v());
+    A.current = m(), _(v());
   }, [i]), Ac(() => {
     c.current && !document.contains(c.current.targetElement) && t();
   });
-  const A = yo(() => a(!0), []), P = yo(() => a(!1), []), S = n === "all" ? "📡" : n === "twitter" ? "𝕏" : n === "bluesky" ? "🦋" : "LW";
+  const E = yo(() => a(!0), []), P = yo(() => a(!1), []), S = n === "all" ? "📡" : n === "twitter" ? "𝕏" : n === "bluesky" ? "🦋" : "LW";
   return /* @__PURE__ */ Y.createElement(Y.Fragment, null, /* @__PURE__ */ Y.createElement(
     dre,
     {
       target: /* @__PURE__ */ Y.createElement(
         "span",
         {
-          onClick: A,
+          onClick: E,
           style: {
             cursor: "pointer",
             fontSize: 15,
@@ -42721,7 +42729,7 @@ const mre = ({ childrenRef: e, unmount: t, ...r }) => {
       onInteraction: (R) => a(R),
       ref: c
     }
-  ), h && b.map((R, B) => ({ ...R, el: E.current[B] })).filter((R) => R.el).map(
+  ), h && b.map((R, B) => ({ ...R, el: A.current[B] })).filter((R) => R.el).map(
     (R) => oa.createPortal(
       /* @__PURE__ */ Y.createElement(
         "span",

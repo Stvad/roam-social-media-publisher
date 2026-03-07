@@ -124,6 +124,7 @@ export async function postToTwitter(
           post {
             id
             status
+            externalLink
           }
         }
         ... on MutationError {
@@ -134,34 +135,52 @@ export async function postToTwitter(
   `;
 
   try {
-    for (const block of processed) {
-      if (!block.text && !block.mediaUrls.length) continue;
+    const firstBlock = processed[0];
+    const threadBlocks = processed.slice(1).filter((b) => b.text || b.mediaUrls.length);
 
-      const input: Record<string, unknown> = {
-        text: block.text,
-        channelId,
-        schedulingType: "automatic",
-        mode: "shareNow",
+    function buildAssets(mediaUrls: string[]) {
+      if (mediaUrls.length === 0) return undefined;
+      return {
+        images: mediaUrls.slice(0, 4).map((url) => ({
+          url,
+          metadata: { altText: "Image from Roam Research" },
+        })),
       };
-
-      if (block.mediaUrls.length > 0) {
-        input.assets = {
-          images: block.mediaUrls.slice(0, 4).map((url) => ({
-            url,
-            metadata: { altText: "Image from Roam Research" },
-          })),
-        };
-      }
-
-      const data = await bufferGraphQL(apiToken, mutation, { input });
-      const result = data.createPost;
-
-      if (result.message) {
-        return { success: false, platform: "twitter", error: result.message };
-      }
     }
 
-    return { success: true, platform: "twitter" };
+    const input: Record<string, unknown> = {
+      text: firstBlock.text,
+      channelId,
+      schedulingType: "automatic",
+      mode: "shareNow",
+    };
+
+    const firstAssets = buildAssets(firstBlock.mediaUrls);
+    if (firstAssets) input.assets = firstAssets;
+
+    // Use Buffer's native thread support for multi-block threads
+    if (threadBlocks.length > 0) {
+      input.metadata = {
+        twitter: {
+          thread: threadBlocks.map((b) => {
+            const item: Record<string, unknown> = { text: b.text };
+            const assets = buildAssets(b.mediaUrls);
+            if (assets) item.assets = assets;
+            return item;
+          }),
+        },
+      };
+    }
+
+    const data = await bufferGraphQL(apiToken, mutation, { input });
+    const result = data.createPost;
+
+    if (result.message) {
+      return { success: false, platform: "twitter", error: result.message };
+    }
+
+    const externalLink = result.post?.externalLink || undefined;
+    return { success: true, platform: "twitter", url: externalLink };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return { success: false, platform: "twitter", error: msg };
