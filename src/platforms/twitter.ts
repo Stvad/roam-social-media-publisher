@@ -159,18 +159,23 @@ export async function postToTwitter(
     if (firstAssets) input.assets = firstAssets;
 
     // Use Buffer's native thread support for multi-block threads
-    // metadata is typed as [PostInputMetaData] (array) in the Buffer schema
+    // Put ALL blocks (including first) in the thread array; leave main text
+    // as the first block so Buffer shows it as the thread header
     if (threadBlocks.length > 0) {
-      input.metadata = [{
+      const allThreadItems = processed
+        .filter((b) => b.text || b.mediaUrls.length)
+        .map((b) => {
+          const item: Record<string, unknown> = { text: b.text };
+          const assets = buildAssets(b.mediaUrls);
+          if (assets) item.assets = assets;
+          return item;
+        });
+
+      input.metadata = {
         twitter: {
-          thread: threadBlocks.map((b) => {
-            const item: Record<string, unknown> = { text: b.text };
-            const assets = buildAssets(b.mediaUrls);
-            if (assets) item.assets = assets;
-            return item;
-          }),
+          thread: allThreadItems,
         },
-      }];
+      };
     }
 
     const data = await bufferGraphQL(apiToken, mutation, { input });
