@@ -32,13 +32,17 @@ function processButton(
   if (idSource.length < 9) return;
   const blockUid = idSource.substring(idSource.length - 9);
 
-  // Check if we already rendered our overlay next to this button
-  if (button.parentElement?.querySelector(`.smp-overlay-${command}`)) return;
+  // Hide the original Roam button and render our overlay into its parent
+  // (same pattern as roamjs-twitter: render into b.parentElement)
+  const parentEl = button.parentElement;
+  if (!parentEl) return;
+  if (parentEl.querySelector(`.smp-overlay-${command}`)) return;
 
-  // Create overlay span and insert right after the button
+  button.style.display = "none";
+
   const span = document.createElement("span");
   span.className = `smp-overlay-${command}`;
-  button.insertAdjacentElement("afterend", span);
+  parentEl.appendChild(span);
 
   renderPublishOverlay({ parent: span, blockUid, extensionAPI, target });
 }

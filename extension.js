@@ -557,7 +557,7 @@ async function postToLessWrong(content, extensionAPI) {
   }
 }
 const Blueprint = (_a = window.Blueprint) == null ? void 0 : _a.Core;
-const { Button, Popover, Spinner, Icon, Alert, Tooltip, Checkbox } = Blueprint;
+const { Button, Popover, Spinner, Icon, Tooltip, Checkbox } = Blueprint;
 const PLATFORM_LABELS = {
   twitter: "X / Twitter",
   bluesky: "Bluesky",
@@ -602,15 +602,11 @@ const PublishContent = ({ blockUid, extensionAPI, target, close }) => {
     }
     if (selectedPlatforms.has("twitter")) {
       const v = validateTwitterThread(blocks);
-      if (!v.valid) {
-        v.errors.forEach((e) => errors.push(`Twitter: ${e.reason} (block ${e.uid})`));
-      }
+      if (!v.valid) v.errors.forEach((e) => errors.push(`Twitter: ${e.reason}`));
     }
     if (selectedPlatforms.has("bluesky")) {
       const v = validateBlueskyThread(blocks);
-      if (!v.valid) {
-        v.errors.forEach((e) => errors.push(`Bluesky: ${e.reason} (block ${e.uid})`));
-      }
+      if (!v.valid) v.errors.forEach((e) => errors.push(`Bluesky: ${e.reason}`));
     }
     return { valid: errors.length === 0, errors };
   }, [blocks, selectedPlatforms]);
@@ -619,24 +615,15 @@ const PublishContent = ({ blockUid, extensionAPI, target, close }) => {
     setSending(true);
     setResults([]);
     const content = { blocks };
-    const newResults = [];
     const promises = [];
-    if (selectedPlatforms.has("twitter")) {
-      promises.push(postToTwitter(content, extensionAPI));
-    }
-    if (selectedPlatforms.has("bluesky")) {
-      promises.push(postToBluesky(content, extensionAPI));
-    }
-    if (selectedPlatforms.has("lesswrong")) {
-      promises.push(postToLessWrong(content, extensionAPI));
-    }
+    if (selectedPlatforms.has("twitter")) promises.push(postToTwitter(content, extensionAPI));
+    if (selectedPlatforms.has("bluesky")) promises.push(postToBluesky(content, extensionAPI));
+    if (selectedPlatforms.has("lesswrong")) promises.push(postToLessWrong(content, extensionAPI));
     const settled = await Promise.allSettled(promises);
+    const newResults = [];
     for (const r of settled) {
-      if (r.status === "fulfilled") {
-        newResults.push(r.value);
-      } else {
-        newResults.push({ success: false, platform: "twitter", error: ((_a2 = r.reason) == null ? void 0 : _a2.message) || "Unknown error" });
-      }
+      if (r.status === "fulfilled") newResults.push(r.value);
+      else newResults.push({ success: false, platform: "twitter", error: ((_a2 = r.reason) == null ? void 0 : _a2.message) || "Unknown error" });
     }
     setResults(newResults);
     setSending(false);
@@ -659,7 +646,7 @@ const PublishContent = ({ blockUid, extensionAPI, target, close }) => {
       label: /* @__PURE__ */ React.createElement("span", { style: { display: "inline-flex", alignItems: "center" } }, /* @__PURE__ */ React.createElement(PlatformIcon, { platform: p }), PLATFORM_LABELS[p]),
       style: { marginBottom: 2 }
     }
-  ))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 8, fontSize: 12, color: "#666" } }, blocks.length, " block", blocks.length !== 1 ? "s" : "", " to publish", selectedPlatforms.has("twitter") && ` (thread of ${blocks.length} tweet${blocks.length !== 1 ? "s" : ""})`), !validation.valid && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 8, padding: 8, background: "#fff3f3", borderRadius: 4, fontSize: 12 } }, validation.errors.map((e, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { color: "red" } }, e))), !allDone && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement(
+  ))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 8, fontSize: 12, color: "#666" } }, blocks.length, " block", blocks.length !== 1 ? "s" : "", " to publish", selectedPlatforms.has("twitter") && blocks.length > 0 && ` (thread of ${blocks.length} tweet${blocks.length !== 1 ? "s" : ""})`), !validation.valid && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 8, padding: 8, background: "#fff3f3", borderRadius: 4, fontSize: 12 } }, validation.errors.map((e, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { color: "red" } }, e))), !allDone && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement(
     Button,
     {
       intent: "primary",
@@ -669,22 +656,26 @@ const PublishContent = ({ blockUid, extensionAPI, target, close }) => {
     }
   ), sending && /* @__PURE__ */ React.createElement(Spinner, { size: 20 })), results.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 8 } }, results.map((r, i) => /* @__PURE__ */ React.createElement(ResultLine, { key: i, result: r })), allSuccess && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 8, color: "green", fontSize: 12 } }, "All posts published successfully!"))));
 };
+function getUidFromElement(el) {
+  var _a2;
+  const id = el.id || ((_a2 = el.closest(".roam-block")) == null ? void 0 : _a2.id) || "";
+  return id.length >= 9 ? id.substring(id.length - 9) : "";
+}
 const PublishOverlay = ({ childrenRef, unmount, ...props }) => {
-  const { blockUid, extensionAPI, target } = props;
+  const { blockUid, target } = props;
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef(null);
-  const blocks = useMemo(() => getChildBlocks(blockUid), [blockUid]);
-  const charCounts = useMemo(() => {
-    return blocks.map((b) => {
+  const showTwitter = target === "all" || target === "twitter";
+  const showBluesky = target === "all" || target === "bluesky";
+  const charMax = showBluesky ? BLUESKY_CHAR_MAX : showTwitter ? TWITTER_CHAR_MAX : null;
+  const calcCounts = useCallback(() => {
+    return getChildBlocks(blockUid).map((b) => {
       const text = resolveBlockText(b.text);
-      return {
-        uid: b.uid,
-        twitter: text.length,
-        bluesky: [...text].length
-      };
+      const count = showBluesky ? [...text].length : text.length;
+      return { uid: b.uid, count };
     });
-  }, [blocks]);
-  const calcBlocks = useCallback(
+  }, [blockUid, showBluesky]);
+  const calcBlockEls = useCallback(
     () => Array.from((childrenRef == null ? void 0 : childrenRef.children) || []).filter((c) => c.className.includes("roam-block-container")).map(
       (c) => Array.from(c.children).find(
         (c2) => c2.className.includes("rm-block-main")
@@ -692,23 +683,38 @@ const PublishOverlay = ({ childrenRef, unmount, ...props }) => {
     ),
     [childrenRef]
   );
-  const [blockElements, setBlockElements] = useState(calcBlocks);
-  const [liveCounts, setLiveCounts] = useState(charCounts);
+  const [counts, setCounts] = useState(calcCounts);
+  const blockEls = useRef(calcBlockEls());
+  const inputCallback = useCallback(
+    (e) => {
+      const target2 = e.target;
+      if (target2.tagName === "TEXTAREA") {
+        const textarea = target2;
+        const currentUid = getUidFromElement(textarea);
+        blockEls.current = calcBlockEls();
+        setCounts(
+          calcCounts().map((c) => {
+            if (c.uid === currentUid) {
+              const text = resolveBlockText(textarea.value);
+              const count = showBluesky ? [...text].length : text.length;
+              return { uid: currentUid, count };
+            }
+            return c;
+          })
+        );
+      }
+    },
+    [calcCounts, calcBlockEls, showBluesky]
+  );
   useEffect(() => {
     if (!childrenRef) return;
-    const listener = () => {
-      setBlockElements(calcBlocks());
-      const updatedBlocks = getChildBlocks(blockUid);
-      setLiveCounts(
-        updatedBlocks.map((b) => {
-          const text = resolveBlockText(b.text);
-          return { uid: b.uid, twitter: text.length, bluesky: [...text].length };
-        })
-      );
-    };
-    childrenRef.addEventListener("input", listener);
-    return () => childrenRef.removeEventListener("input", listener);
-  }, [childrenRef, blockUid, calcBlocks]);
+    childrenRef.addEventListener("input", inputCallback);
+    return () => childrenRef.removeEventListener("input", inputCallback);
+  }, [childrenRef, inputCallback]);
+  useEffect(() => {
+    blockEls.current = calcBlockEls();
+    setCounts(calcCounts());
+  }, [isOpen]);
   useEffect(() => {
     if (rootRef.current && !document.contains(rootRef.current.targetElement)) {
       unmount();
@@ -716,9 +722,6 @@ const PublishOverlay = ({ childrenRef, unmount, ...props }) => {
   });
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
-  const showTwitter = target === "all" || target === "twitter";
-  const showBluesky = target === "all" || target === "bluesky";
-  const charMax = showBluesky ? BLUESKY_CHAR_MAX : showTwitter ? TWITTER_CHAR_MAX : null;
   const buttonLabel = target === "all" ? "📡" : target === "twitter" ? "𝕏" : target === "bluesky" ? "🦋" : "LW";
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
     Popover,
@@ -729,9 +732,7 @@ const PublishOverlay = ({ childrenRef, unmount, ...props }) => {
           onClick: open,
           style: {
             cursor: "pointer",
-            marginLeft: 4,
-            fontSize: 14,
-            opacity: 0.8,
+            fontSize: 15,
             userSelect: "none"
           },
           title: `Publish to ${target === "all" ? "all platforms" : PLATFORM_LABELS[target]}`
@@ -743,27 +744,25 @@ const PublishOverlay = ({ childrenRef, unmount, ...props }) => {
       onInteraction: (next) => setIsOpen(next),
       ref: rootRef
     }
-  ), charMax && liveCounts.map((c, i) => ({ ...c, el: blockElements[i] })).filter((c) => c.el).map((c) => {
-    const count = target === "bluesky" ? c.bluesky : c.twitter;
-    return ReactDOM.createPortal(
+  ), charMax && counts.map((c, i) => ({ ...c, el: blockEls.current[i] })).filter((c) => c.el).map(
+    (c) => ReactDOM.createPortal(
       /* @__PURE__ */ React.createElement(
         "span",
         {
           className: "smp-char-count",
           style: {
-            color: count > charMax ? "red" : "#999",
+            color: c.count > charMax ? "red" : "#999",
             fontSize: 11,
-            marginLeft: 4,
-            position: "relative"
+            marginLeft: 4
           }
         },
-        count,
+        c.count,
         "/",
         charMax
       ),
       c.el
-    );
-  }));
+    )
+  ));
 };
 function renderPublishOverlay({
   parent,
@@ -771,8 +770,10 @@ function renderPublishOverlay({
   extensionAPI,
   target
 }) {
-  var _a2;
-  const childrenRef = (_a2 = parent.closest(".rm-block-main")) == null ? void 0 : _a2.nextElementSibling;
+  const blockContainer = parent.closest(".roam-block-container");
+  const childrenRef = blockContainer == null ? void 0 : blockContainer.querySelector(
+    ":scope > .rm-block-children"
+  );
   if (childrenRef) {
     Array.from(childrenRef.getElementsByClassName("smp-char-count")).forEach((s) => s.remove());
   }
@@ -783,7 +784,7 @@ function renderPublishOverlay({
         blockUid,
         extensionAPI,
         target,
-        childrenRef,
+        childrenRef: childrenRef || void 0,
         unmount: () => ReactDOM.unmountComponentAtNode(parent)
       }
     ),
@@ -799,7 +800,6 @@ const BUTTON_COMMANDS = [
 const observers = [];
 const styleEl = [];
 function processButton(button, command, target, extensionAPI) {
-  var _a2;
   const blockContainer = button.closest(".roam-block-container");
   if (!blockContainer) return;
   const blockInput = blockContainer.querySelector(".rm-block__input");
@@ -807,10 +807,13 @@ function processButton(button, command, target, extensionAPI) {
   const idSource = (blockInput == null ? void 0 : blockInput.id) || (roamBlock == null ? void 0 : roamBlock.id) || "";
   if (idSource.length < 9) return;
   const blockUid = idSource.substring(idSource.length - 9);
-  if ((_a2 = button.parentElement) == null ? void 0 : _a2.querySelector(`.smp-overlay-${command}`)) return;
+  const parentEl = button.parentElement;
+  if (!parentEl) return;
+  if (parentEl.querySelector(`.smp-overlay-${command}`)) return;
+  button.style.display = "none";
   const span = document.createElement("span");
   span.className = `smp-overlay-${command}`;
-  button.insertAdjacentElement("afterend", span);
+  parentEl.appendChild(span);
   renderPublishOverlay({ parent: span, blockUid, extensionAPI, target });
 }
 function createButtonObserver(command, target, extensionAPI) {

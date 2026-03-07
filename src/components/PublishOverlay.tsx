@@ -7,7 +7,7 @@ import { isBlueskyConfigured, validateBlueskyThread, postToBluesky, BLUESKY_CHAR
 import { isLessWrongConfigured, postToLessWrong } from "../platforms/lesswrong";
 
 const Blueprint = (window as any).Blueprint?.Core;
-const { Button, Popover, Spinner, Icon, Alert, Tooltip, Checkbox } = Blueprint;
+const { Button, Popover, Spinner, Icon, Tooltip, Checkbox } = Blueprint;
 
 type TargetPlatform = "all" | PlatformId;
 
@@ -15,12 +15,6 @@ interface Props {
   blockUid: string;
   extensionAPI: ExtensionAPI;
   target: TargetPlatform;
-}
-
-interface CharCount {
-  uid: string;
-  twitter?: number;
-  bluesky?: number;
 }
 
 const PLATFORM_LABELS: Record<PlatformId, string> = {
@@ -31,8 +25,8 @@ const PLATFORM_LABELS: Record<PlatformId, string> = {
 
 const PlatformIcon: React.FC<{ platform: PlatformId; size?: number }> = ({ platform, size = 14 }) => {
   const icons: Record<PlatformId, string> = {
-    twitter: "𝕏",
-    bluesky: "🦋",
+    twitter: "\u{1D54F}",
+    bluesky: "\uD83E\uDD8B",
     lesswrong: "LW",
   };
   return (
@@ -90,27 +84,19 @@ const PublishContent: React.FC<
     });
   }, []);
 
-  // Validation
   const validation = useMemo(() => {
     const errors: string[] = [];
     if (blocks.length === 0) {
       errors.push("No child blocks found. Add content as child blocks.");
     }
-
     if (selectedPlatforms.has("twitter")) {
       const v = validateTwitterThread(blocks);
-      if (!v.valid) {
-        v.errors.forEach((e) => errors.push(`Twitter: ${e.reason} (block ${e.uid})`));
-      }
+      if (!v.valid) v.errors.forEach((e) => errors.push(`Twitter: ${e.reason}`));
     }
-
     if (selectedPlatforms.has("bluesky")) {
       const v = validateBlueskyThread(blocks);
-      if (!v.valid) {
-        v.errors.forEach((e) => errors.push(`Bluesky: ${e.reason} (block ${e.uid})`));
-      }
+      if (!v.valid) v.errors.forEach((e) => errors.push(`Bluesky: ${e.reason}`));
     }
-
     return { valid: errors.length === 0, errors };
   }, [blocks, selectedPlatforms]);
 
@@ -118,28 +104,18 @@ const PublishContent: React.FC<
     setSending(true);
     setResults([]);
     const content = { blocks };
-    const newResults: PostResult[] = [];
 
     const promises: Promise<PostResult>[] = [];
-    if (selectedPlatforms.has("twitter")) {
-      promises.push(postToTwitter(content, extensionAPI));
-    }
-    if (selectedPlatforms.has("bluesky")) {
-      promises.push(postToBluesky(content, extensionAPI));
-    }
-    if (selectedPlatforms.has("lesswrong")) {
-      promises.push(postToLessWrong(content, extensionAPI));
-    }
+    if (selectedPlatforms.has("twitter")) promises.push(postToTwitter(content, extensionAPI));
+    if (selectedPlatforms.has("bluesky")) promises.push(postToBluesky(content, extensionAPI));
+    if (selectedPlatforms.has("lesswrong")) promises.push(postToLessWrong(content, extensionAPI));
 
     const settled = await Promise.allSettled(promises);
+    const newResults: PostResult[] = [];
     for (const r of settled) {
-      if (r.status === "fulfilled") {
-        newResults.push(r.value);
-      } else {
-        newResults.push({ success: false, platform: "twitter", error: r.reason?.message || "Unknown error" });
-      }
+      if (r.status === "fulfilled") newResults.push(r.value);
+      else newResults.push({ success: false, platform: "twitter", error: r.reason?.message || "Unknown error" });
     }
-
     setResults(newResults);
     setSending(false);
   }, [blocks, selectedPlatforms, extensionAPI]);
@@ -163,7 +139,6 @@ const PublishContent: React.FC<
         </div>
       ) : (
         <>
-          {/* Platform selection */}
           {target === "all" && (
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 13 }}>Publish to:</div>
@@ -184,13 +159,12 @@ const PublishContent: React.FC<
             </div>
           )}
 
-          {/* Content preview */}
           <div style={{ marginBottom: 8, fontSize: 12, color: "#666" }}>
             {blocks.length} block{blocks.length !== 1 ? "s" : ""} to publish
-            {selectedPlatforms.has("twitter") && ` (thread of ${blocks.length} tweet${blocks.length !== 1 ? "s" : ""})`}
+            {selectedPlatforms.has("twitter") && blocks.length > 0 &&
+              ` (thread of ${blocks.length} tweet${blocks.length !== 1 ? "s" : ""})`}
           </div>
 
-          {/* Validation errors */}
           {!validation.valid && (
             <div style={{ marginBottom: 8, padding: 8, background: "#fff3f3", borderRadius: 4, fontSize: 12 }}>
               {validation.errors.map((e, i) => (
@@ -199,7 +173,6 @@ const PublishContent: React.FC<
             </div>
           )}
 
-          {/* Publish button */}
           {!allDone && (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Button
@@ -212,7 +185,6 @@ const PublishContent: React.FC<
             </div>
           )}
 
-          {/* Results */}
           {results.length > 0 && (
             <div style={{ marginTop: 8 }}>
               {results.map((r, i) => (
@@ -231,27 +203,40 @@ const PublishContent: React.FC<
   );
 };
 
+// Helper: extract block uid from a Roam textarea or block element
+function getUidFromElement(el: HTMLElement): string {
+  const id = el.id || el.closest(".roam-block")?.id || "";
+  return id.length >= 9 ? id.substring(id.length - 9) : "";
+}
+
+interface CountEntry {
+  uid: string;
+  count: number;
+}
+
 const PublishOverlay: React.FC<
   Props & { childrenRef?: HTMLDivElement; unmount: () => void }
 > = ({ childrenRef, unmount, ...props }) => {
-  const { blockUid, extensionAPI, target } = props;
+  const { blockUid, target } = props;
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<any>(null);
-  const blocks = useMemo(() => getChildBlocks(blockUid), [blockUid]);
 
-  // Compute character counts for inline display
-  const charCounts = useMemo(() => {
-    return blocks.map((b) => {
+  // Determine char limit based on target
+  const showTwitter = target === "all" || target === "twitter";
+  const showBluesky = target === "all" || target === "bluesky";
+  const charMax = showBluesky ? BLUESKY_CHAR_MAX : showTwitter ? TWITTER_CHAR_MAX : null;
+
+  // Calculate counts from Roam DB
+  const calcCounts = useCallback((): CountEntry[] => {
+    return getChildBlocks(blockUid).map((b) => {
       const text = resolveBlockText(b.text);
-      return {
-        uid: b.uid,
-        twitter: text.length,
-        bluesky: [...text].length,
-      };
+      const count = showBluesky ? [...text].length : text.length;
+      return { uid: b.uid, count };
     });
-  }, [blocks]);
+  }, [blockUid, showBluesky]);
 
-  const calcBlocks = useCallback(
+  // Get DOM elements for child blocks (for portal rendering)
+  const calcBlockEls = useCallback(
     () =>
       Array.from(childrenRef?.children || [])
         .filter((c) => c.className.includes("roam-block-container"))
@@ -264,25 +249,44 @@ const PublishOverlay: React.FC<
     [childrenRef]
   );
 
-  const [blockElements, setBlockElements] = useState(calcBlocks);
-  const [liveCounts, setLiveCounts] = useState(charCounts);
+  const [counts, setCounts] = useState<CountEntry[]>(calcCounts);
+  const blockEls = useRef(calcBlockEls());
 
-  // Listen to input changes for live character counts
+  // Listen for input events on children to update counts live
+  const inputCallback = useCallback(
+    (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "TEXTAREA") {
+        const textarea = target as HTMLTextAreaElement;
+        const currentUid = getUidFromElement(textarea);
+        blockEls.current = calcBlockEls();
+        setCounts(
+          calcCounts().map((c) => {
+            if (c.uid === currentUid) {
+              // Use live textarea value instead of DB value
+              const text = resolveBlockText(textarea.value);
+              const count = showBluesky ? [...text].length : text.length;
+              return { uid: currentUid, count };
+            }
+            return c;
+          })
+        );
+      }
+    },
+    [calcCounts, calcBlockEls, showBluesky]
+  );
+
   useEffect(() => {
     if (!childrenRef) return;
-    const listener = () => {
-      setBlockElements(calcBlocks());
-      const updatedBlocks = getChildBlocks(blockUid);
-      setLiveCounts(
-        updatedBlocks.map((b) => {
-          const text = resolveBlockText(b.text);
-          return { uid: b.uid, twitter: text.length, bluesky: [...text].length };
-        })
-      );
-    };
-    childrenRef.addEventListener("input", listener);
-    return () => childrenRef.removeEventListener("input", listener);
-  }, [childrenRef, blockUid, calcBlocks]);
+    childrenRef.addEventListener("input", inputCallback);
+    return () => childrenRef.removeEventListener("input", inputCallback);
+  }, [childrenRef, inputCallback]);
+
+  // Also refresh counts when popover opens or children change
+  useEffect(() => {
+    blockEls.current = calcBlockEls();
+    setCounts(calcCounts());
+  }, [isOpen]);
 
   useEffect(() => {
     if (rootRef.current && !document.contains(rootRef.current.targetElement)) {
@@ -293,12 +297,7 @@ const PublishOverlay: React.FC<
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
 
-  // Determine the most restrictive char limit to show
-  const showTwitter = target === "all" || target === "twitter";
-  const showBluesky = target === "all" || target === "bluesky";
-  const charMax = showBluesky ? BLUESKY_CHAR_MAX : showTwitter ? TWITTER_CHAR_MAX : null;
-
-  const buttonLabel = target === "all" ? "📡" : target === "twitter" ? "𝕏" : target === "bluesky" ? "🦋" : "LW";
+  const buttonLabel = target === "all" ? "\uD83D\uDCE1" : target === "twitter" ? "\u{1D54F}" : target === "bluesky" ? "\uD83E\uDD8B" : "LW";
 
   return (
     <>
@@ -308,9 +307,7 @@ const PublishOverlay: React.FC<
             onClick={open}
             style={{
               cursor: "pointer",
-              marginLeft: 4,
-              fontSize: 14,
-              opacity: 0.8,
+              fontSize: 15,
               userSelect: "none",
             }}
             title={`Publish to ${target === "all" ? "all platforms" : PLATFORM_LABELS[target]}`}
@@ -325,26 +322,24 @@ const PublishOverlay: React.FC<
       />
       {/* Inline character counts via portals */}
       {charMax &&
-        liveCounts
-          .map((c, i) => ({ ...c, el: blockElements[i] }))
+        counts
+          .map((c, i) => ({ ...c, el: blockEls.current[i] }))
           .filter((c) => c.el)
-          .map((c) => {
-            const count = target === "bluesky" ? c.bluesky : c.twitter;
-            return ReactDOM.createPortal(
+          .map((c) =>
+            ReactDOM.createPortal(
               <span
                 className="smp-char-count"
                 style={{
-                  color: count > charMax ? "red" : "#999",
+                  color: c.count > charMax ? "red" : "#999",
                   fontSize: 11,
                   marginLeft: 4,
-                  position: "relative",
                 }}
               >
-                {count}/{charMax}
+                {c.count}/{charMax}
               </span>,
               c.el
-            );
-          })}
+            )
+          )}
     </>
   );
 };
@@ -355,12 +350,18 @@ export function renderPublishOverlay({
   extensionAPI,
   target,
 }: {
-  parent: HTMLSpanElement;
+  parent: HTMLElement;
   blockUid: string;
   extensionAPI: ExtensionAPI;
   target: TargetPlatform;
 }): void {
-  const childrenRef = parent.closest(".rm-block-main")?.nextElementSibling as HTMLDivElement;
+  // childrenRef is the div containing child block containers,
+  // which is the next sibling of .rm-block-main
+  const blockContainer = parent.closest(".roam-block-container");
+  const childrenRef = blockContainer?.querySelector(
+    ":scope > .rm-block-children"
+  ) as HTMLDivElement | null;
+
   if (childrenRef) {
     Array.from(childrenRef.getElementsByClassName("smp-char-count")).forEach((s) => s.remove());
   }
@@ -369,7 +370,7 @@ export function renderPublishOverlay({
       blockUid={blockUid}
       extensionAPI={extensionAPI}
       target={target}
-      childrenRef={childrenRef}
+      childrenRef={childrenRef || undefined}
       unmount={() => ReactDOM.unmountComponentAtNode(parent)}
     />,
     parent
