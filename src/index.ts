@@ -215,19 +215,22 @@ export default {
     for (const sc of slashCommands) {
       window.roamAlphaAPI.ui.slashCommand.addCommand({
         label: sc.label,
-        callback: async (context: { "block-uid": string }) => {
+        callback: (context: { "block-uid": string }) => {
           const blockUid = context["block-uid"];
-          await window.roamAlphaAPI.updateBlock({
-            block: { uid: blockUid, string: `{{[[${sc.buttonText}]]}}` },
-          });
-          const childUid = window.roamAlphaAPI.util.generateUID();
-          await window.roamAlphaAPI.createBlock({
-            location: { "parent-uid": blockUid, order: 0 },
-            block: { uid: childUid, string: "" },
-          });
-          await window.roamAlphaAPI.ui.setBlockFocusAndSelection({
-            location: { "block-uid": childUid, "window-id": "main-window" },
-          });
+          // Defer child block creation to avoid racing with Roam's slash command handling
+          setTimeout(async () => {
+            await window.roamAlphaAPI.updateBlock({
+              block: { uid: blockUid, string: `{{[[${sc.buttonText}]]}}` },
+            });
+            const childUid = window.roamAlphaAPI.util.generateUID();
+            await window.roamAlphaAPI.createBlock({
+              location: { "parent-uid": blockUid, order: 0 },
+              block: { uid: childUid, string: "" },
+            });
+            await window.roamAlphaAPI.ui.setBlockFocusAndSelection({
+              location: { "block-uid": childUid, "window-id": "main-window" },
+            });
+          }, 50);
           return null;
         },
       });

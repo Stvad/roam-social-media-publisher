@@ -42906,18 +42906,20 @@ const hne = {
     for (const n of o)
       window.roamAlphaAPI.ui.slashCommand.addCommand({
         label: n.label,
-        callback: async (i) => {
+        callback: (i) => {
           const a = i["block-uid"];
-          await window.roamAlphaAPI.updateBlock({
-            block: { uid: a, string: `{{[[${n.buttonText}]]}}` }
-          });
-          const c = window.roamAlphaAPI.util.generateUID();
-          return await window.roamAlphaAPI.createBlock({
-            location: { "parent-uid": a, order: 0 },
-            block: { uid: c, string: "" }
-          }), await window.roamAlphaAPI.ui.setBlockFocusAndSelection({
-            location: { "block-uid": c, "window-id": "main-window" }
-          }), null;
+          return setTimeout(async () => {
+            await window.roamAlphaAPI.updateBlock({
+              block: { uid: a, string: `{{[[${n.buttonText}]]}}` }
+            });
+            const c = window.roamAlphaAPI.util.generateUID();
+            await window.roamAlphaAPI.createBlock({
+              location: { "parent-uid": a, order: 0 },
+              block: { uid: c, string: "" }
+            }), await window.roamAlphaAPI.ui.setBlockFocusAndSelection({
+              location: { "block-uid": c, "window-id": "main-window" }
+            });
+          }, 50), null;
         }
       });
     for (const { command: n, target: i } of hre)
