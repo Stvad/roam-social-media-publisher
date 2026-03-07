@@ -101,6 +101,13 @@ function addStyles() {
     .smp-char-count {
       font-family: monospace;
       pointer-events: none;
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    .rm-block-main {
+      position: relative;
     }
     .smp-overlay-publish,
     .smp-overlay-tweet,
@@ -152,52 +159,49 @@ export default {
       ],
     });
 
-    // Register command palette commands
-    extensionAPI.ui.commandPalette.addCommand({
-      label: "Social Media Publisher: Publish current block",
-      callback: () => {
-        const focused = window.roamAlphaAPI.ui.getFocusedBlock();
-        if (!focused) return;
-        const blockUid = focused["block-uid"];
-        // Open the publish overlay programmatically
-        const blockEl = document.querySelector(`[id$="${blockUid}"]`);
-        if (!blockEl) return;
-        const mainEl = blockEl.closest(".rm-block-main") || blockEl;
-        let overlay = mainEl.querySelector(".smp-overlay-publish");
-        if (!overlay) {
-          overlay = document.createElement("span");
-          overlay.className = "smp-overlay-publish";
-          mainEl.appendChild(overlay);
-        }
-        renderPublishOverlay({
-          parent: overlay as HTMLSpanElement,
-          blockUid,
-          extensionAPI,
-          target: "all",
-        });
-      },
-    });
+    // Helper to open the publish overlay for a given block
+    function openOverlay(blockUid: string, target: "all" | PlatformId) {
+      const blockEl = document.querySelector(`[id$="${blockUid}"]`);
+      if (!blockEl) return;
+      const mainEl = blockEl.closest(".rm-block-main") || blockEl;
+      const cls = `smp-overlay-${target === "all" ? "publish" : target}`;
+      let overlay = mainEl.querySelector(`.${cls}`);
+      if (!overlay) {
+        overlay = document.createElement("span");
+        overlay.className = cls;
+        mainEl.appendChild(overlay);
+      }
+      renderPublishOverlay({
+        parent: overlay as HTMLSpanElement,
+        blockUid,
+        extensionAPI,
+        target,
+      });
+    }
 
-    // Register block context menu commands
+    // Register command palette commands
+    const commands: { label: string; target: "all" | PlatformId }[] = [
+      { label: "SMP: Publish to all platforms", target: "all" },
+      { label: "SMP: Publish to Twitter/X", target: "twitter" },
+      { label: "SMP: Publish to Bluesky", target: "bluesky" },
+      { label: "SMP: Publish to LessWrong", target: "lesswrong" },
+    ];
+    for (const cmd of commands) {
+      extensionAPI.ui.commandPalette.addCommand({
+        label: cmd.label,
+        callback: () => {
+          const focused = window.roamAlphaAPI.ui.getFocusedBlock();
+          if (!focused) return;
+          openOverlay(focused["block-uid"], cmd.target);
+        },
+      });
+    }
+
+    // Register block context menu command
     window.roamAlphaAPI.ui.blockContextMenu.addCommand({
       label: "Publish to Social Media",
       callback: (context: { "block-uid": string }) => {
-        const blockUid = context["block-uid"];
-        const blockEl = document.querySelector(`[id$="${blockUid}"]`);
-        if (!blockEl) return;
-        const mainEl = blockEl.closest(".rm-block-main") || blockEl;
-        let overlay = mainEl.querySelector(".smp-overlay-publish");
-        if (!overlay) {
-          overlay = document.createElement("span");
-          overlay.className = "smp-overlay-publish";
-          mainEl.appendChild(overlay);
-        }
-        renderPublishOverlay({
-          parent: overlay as HTMLSpanElement,
-          blockUid,
-          extensionAPI,
-          target: "all",
-        });
+        openOverlay(context["block-uid"], "all");
       },
     });
 
@@ -217,9 +221,14 @@ export default {
     styleEl.length = 0;
 
     // Remove command palette commands
-    window.roamAlphaAPI.ui.commandPalette?.removeCommand?.({
-      label: "Social Media Publisher: Publish current block",
-    });
+    for (const label of [
+      "SMP: Publish to all platforms",
+      "SMP: Publish to Twitter/X",
+      "SMP: Publish to Bluesky",
+      "SMP: Publish to LessWrong",
+    ]) {
+      window.roamAlphaAPI.ui.commandPalette?.removeCommand?.({ label });
+    }
 
     // Remove block context menu commands
     window.roamAlphaAPI.ui.blockContextMenu?.removeCommand?.({

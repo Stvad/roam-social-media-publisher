@@ -2,6 +2,8 @@
 
 Publish content from Roam Research to Twitter/X, Bluesky, and LessWrong.
 
+Inspired by [roamjs-twitter](https://github.com/dvargas92495/roamjs-twitter) and [roam-depot-bluesky-post](https://github.com/andreynocap/roam-depot-bluesky-post).
+
 ## Usage
 
 Type one of these commands in a block, then add your content as child blocks:
@@ -15,7 +17,18 @@ Each child block becomes a separate post in a thread (Twitter/Bluesky) or is com
 
 An icon appears next to the block. Click it to open the publish dialog. Character counts are shown inline next to each child block.
 
-You can also right-click any block and select **Publish to Social Media**, or use the command palette.
+You can also:
+- **Right-click** any block bullet > Plugins > **Publish to Social Media**
+- **Command palette** (Cmd+P): search for "SMP" to find per-platform publish commands
+
+After successful publishing, the parent block is annotated with links to the published posts and a timestamp.
+
+### Images
+
+Images in Roam (`![alt](url)` syntax) are automatically included when posting:
+- **Twitter/X**: Up to 4 images per tweet via Buffer
+- **Bluesky**: Up to 4 images per post, uploaded via AT Protocol
+- **LessWrong**: Rendered as `<img>` tags in the HTML output
 
 ## Platform Setup
 
@@ -52,6 +65,8 @@ Note: The login token expires when you log out or after some time. Update it in 
 - **Twitter/X**: 280 characters per tweet
 - **Bluesky**: 300 graphemes per post
 - **LessWrong**: No character limit
+
+When publishing to multiple platforms, the inline character counter shows the strictest (lowest) limit.
 
 ## Development
 
