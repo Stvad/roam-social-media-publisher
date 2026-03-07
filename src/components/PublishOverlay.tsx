@@ -237,10 +237,13 @@ const PublishOverlay: React.FC<
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<any>(null);
 
-  // Determine char limit based on target
+  // Determine char limit: use the strictest (lowest) limit among selected platforms
   const showTwitter = target === "all" || target === "twitter";
   const showBluesky = target === "all" || target === "bluesky";
-  const charMax = showBluesky ? BLUESKY_CHAR_MAX : showTwitter ? TWITTER_CHAR_MAX : null;
+  const limits: number[] = [];
+  if (showTwitter) limits.push(TWITTER_CHAR_MAX);
+  if (showBluesky) limits.push(BLUESKY_CHAR_MAX);
+  const charMax = limits.length > 0 ? Math.min(...limits) : null;
 
   // Calculate counts from Roam DB
   const calcCounts = useCallback((): CountEntry[] => {
