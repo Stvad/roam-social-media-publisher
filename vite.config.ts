@@ -13,7 +13,7 @@ export default defineConfig({
       // Don't externalize anything — bundle oauth-1.0a,
       // and use virtual modules for Roam-provided globals
     },
-    minify: false,
+    minify: true,
     sourcemap: true,
   },
   plugins: [

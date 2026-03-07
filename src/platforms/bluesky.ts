@@ -1,79 +1,15 @@
+import { AtpAgent, RichText } from "@atproto/api";
 import type { PostContent, PostResult } from "../types";
 import type { ExtensionAPI } from "../types";
-import { getCorsProxyUrl, processBlockText } from "../utils";
+import { processBlockText } from "../utils";
 
 const BLUESKY_CHAR_LIMIT = 300;
-const BSKY_API_BASE = "https://bsky.social/xrpc";
-
-interface BlueskySession {
-  accessJwt: string;
-  did: string;
-}
 
 function getCredentials(extensionAPI: ExtensionAPI): { handle: string; appPassword: string } | null {
   const handle = extensionAPI.settings.get("bluesky-handle") as string;
   const appPassword = extensionAPI.settings.get("bluesky-app-password") as string;
   if (!handle || !appPassword) return null;
   return { handle, appPassword };
-}
-
-async function createSession(handle: string, appPassword: string): Promise<BlueskySession> {
-  const corsProxy = getCorsProxyUrl();
-  const url = `${BSKY_API_BASE}/com.atproto.server.createSession`;
-
-  const response = await fetch(`${corsProxy}/${url}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ identifier: handle, password: appPassword }),
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err?.message || `Bluesky auth failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return { accessJwt: data.accessJwt, did: data.did };
-}
-
-// Detect mentions (@handle.bsky.social) and URLs, return facets array
-function detectFacets(text: string): Array<{
-  index: { byteStart: number; byteEnd: number };
-  features: Array<Record<string, unknown>>;
-}> {
-  const encoder = new TextEncoder();
-  const facets: Array<{
-    index: { byteStart: number; byteEnd: number };
-    features: Array<Record<string, unknown>>;
-  }> = [];
-
-  // Detect URLs
-  const urlRegex = /https?:\/\/[^\s)>\]]+/g;
-  let match: RegExpExecArray | null;
-  while ((match = urlRegex.exec(text)) !== null) {
-    const beforeBytes = encoder.encode(text.slice(0, match.index)).byteLength;
-    const matchBytes = encoder.encode(match[0]).byteLength;
-    facets.push({
-      index: { byteStart: beforeBytes, byteEnd: beforeBytes + matchBytes },
-      features: [{ $type: "app.bsky.richtext.facet#link", uri: match[0] }],
-    });
-  }
-
-  // Detect mentions
-  const mentionRegex = /@([a-zA-Z0-9._-]+(?:\.[a-zA-Z0-9._-]+)*)/g;
-  while ((match = mentionRegex.exec(text)) !== null) {
-    const handle = match[1];
-    if (handle.includes(".")) {
-      const beforeBytes = encoder.encode(text.slice(0, match.index)).byteLength;
-      const matchBytes = encoder.encode(match[0]).byteLength;
-      facets.push({
-        index: { byteStart: beforeBytes, byteEnd: beforeBytes + matchBytes },
-        features: [{ $type: "app.bsky.richtext.facet#mention", did: handle }],
-      });
-    }
-  }
-
-  return facets;
 }
 
 export function isBlueskyConfigured(extensionAPI: ExtensionAPI): boolean {
@@ -104,6 +40,44 @@ export function validateBlueskyThread(blocks: { text: string; uid: string }[]): 
   return { valid: errors.length === 0, errors, counts };
 }
 
+async function fetchImageAsBlob(url: string): Promise<Blob> {
+  const response = await fetch(url);
+  return response.blob();
+}
+
+async function uploadImages(
+  mediaUrls: string[],
+  agent: AtpAgent
+): Promise<{ $type: string; images: Array<{ alt: string; image: unknown }> } | null> {
+  if (!mediaUrls.length) return null;
+
+  const uploadedImages = await Promise.all(
+    mediaUrls.slice(0, 4).map(async (url) => {
+      const blob = await fetchImageAsBlob(url);
+      const arrayBuffer = await blob.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      const { data: uploadData } = await agent.uploadBlob(uint8Array, {
+        encoding: blob.type || "image/jpeg",
+      });
+
+      if (!uploadData?.blob) {
+        throw new Error("Failed to upload image: no blob reference returned");
+      }
+
+      return {
+        alt: "Image from Roam Research",
+        image: uploadData.blob,
+      };
+    })
+  );
+
+  return {
+    $type: "app.bsky.embed.images",
+    images: uploadedImages,
+  };
+}
+
 export async function postToBluesky(
   content: PostContent,
   extensionAPI: ExtensionAPI
@@ -113,70 +87,62 @@ export async function postToBluesky(
     return { success: false, platform: "bluesky", error: "Bluesky credentials not configured" };
   }
 
-  let session: BlueskySession;
+  const agent = new AtpAgent({ service: "https://bsky.social" });
+
   try {
-    session = await createSession(creds.handle, creds.appPassword);
+    await agent.login({ identifier: creds.handle, password: creds.appPassword });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return { success: false, platform: "bluesky", error: msg };
   }
 
-  const corsProxy = getCorsProxyUrl();
   let rootRef: { uri: string; cid: string } | undefined;
   let parentRef: { uri: string; cid: string } | undefined;
   let firstPostUri: string | undefined;
 
   for (const block of content.blocks) {
-    const { text } = processBlockText(block.text);
-    const facets = detectFacets(text);
+    const { text, mediaUrls } = processBlockText(block.text);
 
-    const record: Record<string, unknown> = {
-      $type: "app.bsky.feed.post",
-      text,
+    // Skip empty blocks with no media
+    if (!text && !mediaUrls.length) continue;
+
+    // Use RichText for proper facet detection (links, mentions, hashtags)
+    const rt = new RichText({ text });
+    await rt.detectFacets(agent);
+
+    const record: any = {
+      text: rt.text,
+      facets: rt.facets,
       createdAt: new Date().toISOString(),
     };
 
-    if (facets.length > 0) {
-      record.facets = facets;
-    }
-
+    // Thread: set reply references
     if (parentRef && rootRef) {
       record.reply = { root: rootRef, parent: parentRef };
     }
 
-    const url = `${BSKY_API_BASE}/com.atproto.repo.createRecord`;
+    // Upload and embed images
+    if (mediaUrls.length > 0) {
+      try {
+        const embed = await uploadImages(mediaUrls, agent);
+        if (embed) record.embed = embed;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { success: false, platform: "bluesky", error: `Image upload failed: ${msg}` };
+      }
+    }
 
     try {
-      const response = await fetch(`${corsProxy}/${url}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.accessJwt}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          repo: session.did,
-          collection: "app.bsky.feed.post",
-          record,
-        }),
-      });
+      const response = await agent.api.app.bsky.feed.post.create(
+        { repo: agent.session!.did },
+        record as any
+      );
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        return {
-          success: false,
-          platform: "bluesky",
-          error: errData?.message || `HTTP ${response.status}`,
-        };
-      }
-
-      const data = await response.json();
-      const ref = { uri: data.uri, cid: data.cid };
+      const ref = { uri: response.uri, cid: response.cid };
 
       if (!rootRef) {
         rootRef = ref;
-        // Convert AT URI to web URL
-        // at://did:plc:xxx/app.bsky.feed.post/rkey -> https://bsky.app/profile/handle/post/rkey
-        const rkey = data.uri.split("/").pop();
+        const rkey = response.uri.split("/").pop();
         firstPostUri = `https://bsky.app/profile/${creds.handle}/post/${rkey}`;
       }
       parentRef = ref;
