@@ -1,7 +1,7 @@
 import { AtpAgent, RichText } from "@atproto/api";
 import type { PostContent, PostResult } from "../types";
 import type { ExtensionAPI } from "../types";
-import { processBlockText } from "../utils";
+import { getCorsProxyUrl, processBlockText } from "../utils";
 
 const BLUESKY_CHAR_LIMIT = 300;
 
@@ -41,7 +41,9 @@ export function validateBlueskyThread(blocks: { text: string; uid: string }[]): 
 }
 
 async function fetchImageAsBlob(url: string): Promise<Blob> {
-  const response = await fetch(url);
+  const corsProxy = getCorsProxyUrl();
+  const fetchUrl = corsProxy ? `${corsProxy}/${url}` : url;
+  const response = await fetch(fetchUrl);
   return response.blob();
 }
 
