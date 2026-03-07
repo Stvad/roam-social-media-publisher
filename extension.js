@@ -1,8 +1,8 @@
-"use strict";
 var _a;
-const React = require("react");
-const ReactDOM = require("react-dom");
-const CryptoJS = require("crypto-js");
+const React = window.React;
+const { useState, useCallback, useEffect, useMemo, useRef, createElement, Fragment, createContext, useContext, forwardRef, memo, lazy, Suspense, Component, PureComponent, Children, cloneElement, isValidElement, createRef } = React;
+const ReactDOM = window.ReactDOM;
+const { render, createPortal, unmountComponentAtNode, findDOMNode, hydrate, flushSync } = ReactDOM;
 function getCorsProxyUrl() {
   var _a2, _b;
   return ((_b = (_a2 = window.roamAlphaAPI) == null ? void 0 : _a2.constants) == null ? void 0 : _b.corsAnywhereProxyUrl) || "";
@@ -43,9 +43,9 @@ function getDefaultExportFromCjs(x) {
   return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
 }
 var oauth1_0a = { exports: {} };
-(function(module2, exports$1) {
+(function(module, exports$1) {
   {
-    module2.exports = OAuth2;
+    module.exports = OAuth2;
   }
   function OAuth2(opts) {
     if (!(this instanceof OAuth2)) {
@@ -248,6 +248,8 @@ var oauth1_0a = { exports: {} };
 })(oauth1_0a);
 var oauth1_0aExports = oauth1_0a.exports;
 const OAuth = /* @__PURE__ */ getDefaultExportFromCjs(oauth1_0aExports);
+const CryptoJS = window.CryptoJS;
+const { HmacSHA1, enc, SHA256, MD5, AES, lib } = CryptoJS;
 const TWITTER_CHAR_LIMIT = 280;
 const TWITTER_API_BASE = "https://api.x.com/2";
 function getCredentials$2(extensionAPI) {
@@ -571,10 +573,10 @@ const PlatformIcon = ({ platform, size = 14 }) => {
 };
 const ResultLine = ({ result }) => /* @__PURE__ */ React.createElement("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4 } }, /* @__PURE__ */ React.createElement(PlatformIcon, { platform: result.platform }), result.success ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Icon, { icon: "tick-circle", intent: "success", size: 14 }), result.url && /* @__PURE__ */ React.createElement("a", { href: result.url, target: "_blank", rel: "noopener noreferrer", style: { fontSize: 12 } }, "View post")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Icon, { icon: "error", intent: "danger", size: 14 }), /* @__PURE__ */ React.createElement("span", { style: { color: "red", fontSize: 12 } }, result.error)));
 const PublishContent = ({ blockUid, extensionAPI, target, close }) => {
-  const blocks = React.useMemo(() => getChildBlocks(blockUid), [blockUid]);
-  const [sending, setSending] = React.useState(false);
-  const [results, setResults] = React.useState([]);
-  const [selectedPlatforms, setSelectedPlatforms] = React.useState(() => {
+  const blocks = useMemo(() => getChildBlocks(blockUid), [blockUid]);
+  const [sending, setSending] = useState(false);
+  const [results, setResults] = useState([]);
+  const [selectedPlatforms, setSelectedPlatforms] = useState(() => {
     const set = /* @__PURE__ */ new Set();
     if (target === "all") {
       if (isTwitterConfigured(extensionAPI)) set.add("twitter");
@@ -585,7 +587,7 @@ const PublishContent = ({ blockUid, extensionAPI, target, close }) => {
     }
     return set;
   });
-  const togglePlatform = React.useCallback((p) => {
+  const togglePlatform = useCallback((p) => {
     setSelectedPlatforms((prev) => {
       const next = new Set(prev);
       if (next.has(p)) next.delete(p);
@@ -593,7 +595,7 @@ const PublishContent = ({ blockUid, extensionAPI, target, close }) => {
       return next;
     });
   }, []);
-  const validation = React.useMemo(() => {
+  const validation = useMemo(() => {
     const errors = [];
     if (blocks.length === 0) {
       errors.push("No child blocks found. Add content as child blocks.");
@@ -612,7 +614,7 @@ const PublishContent = ({ blockUid, extensionAPI, target, close }) => {
     }
     return { valid: errors.length === 0, errors };
   }, [blocks, selectedPlatforms]);
-  const onPublish = React.useCallback(async () => {
+  const onPublish = useCallback(async () => {
     var _a2;
     setSending(true);
     setResults([]);
@@ -639,7 +641,7 @@ const PublishContent = ({ blockUid, extensionAPI, target, close }) => {
     setResults(newResults);
     setSending(false);
   }, [blocks, selectedPlatforms, extensionAPI]);
-  const allConfigured = React.useMemo(() => {
+  const allConfigured = useMemo(() => {
     const platforms = [];
     if (isTwitterConfigured(extensionAPI)) platforms.push("twitter");
     if (isBlueskyConfigured(extensionAPI)) platforms.push("bluesky");
@@ -669,10 +671,10 @@ const PublishContent = ({ blockUid, extensionAPI, target, close }) => {
 };
 const PublishOverlay = ({ childrenRef, unmount, ...props }) => {
   const { blockUid, extensionAPI, target } = props;
-  const [isOpen, setIsOpen] = React.useState(false);
-  const rootRef = React.useRef(null);
-  const blocks = React.useMemo(() => getChildBlocks(blockUid), [blockUid]);
-  const charCounts = React.useMemo(() => {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef(null);
+  const blocks = useMemo(() => getChildBlocks(blockUid), [blockUid]);
+  const charCounts = useMemo(() => {
     return blocks.map((b) => {
       const text = resolveBlockText(b.text);
       return {
@@ -682,7 +684,7 @@ const PublishOverlay = ({ childrenRef, unmount, ...props }) => {
       };
     });
   }, [blocks]);
-  const calcBlocks = React.useCallback(
+  const calcBlocks = useCallback(
     () => Array.from((childrenRef == null ? void 0 : childrenRef.children) || []).filter((c) => c.className.includes("roam-block-container")).map(
       (c) => Array.from(c.children).find(
         (c2) => c2.className.includes("rm-block-main")
@@ -690,9 +692,9 @@ const PublishOverlay = ({ childrenRef, unmount, ...props }) => {
     ),
     [childrenRef]
   );
-  const [blockElements, setBlockElements] = React.useState(calcBlocks);
-  const [liveCounts, setLiveCounts] = React.useState(charCounts);
-  React.useEffect(() => {
+  const [blockElements, setBlockElements] = useState(calcBlocks);
+  const [liveCounts, setLiveCounts] = useState(charCounts);
+  useEffect(() => {
     if (!childrenRef) return;
     const listener = () => {
       setBlockElements(calcBlocks());
@@ -707,13 +709,13 @@ const PublishOverlay = ({ childrenRef, unmount, ...props }) => {
     childrenRef.addEventListener("input", listener);
     return () => childrenRef.removeEventListener("input", listener);
   }, [childrenRef, blockUid, calcBlocks]);
-  React.useEffect(() => {
+  useEffect(() => {
     if (rootRef.current && !document.contains(rootRef.current.targetElement)) {
       unmount();
     }
   });
-  const open = React.useCallback(() => setIsOpen(true), []);
-  const close = React.useCallback(() => setIsOpen(false), []);
+  const open = useCallback(() => setIsOpen(true), []);
+  const close = useCallback(() => setIsOpen(false), []);
   const showTwitter = target === "all" || target === "twitter";
   const showBluesky = target === "all" || target === "bluesky";
   const charMax = showBluesky ? BLUESKY_CHAR_MAX : showTwitter ? TWITTER_CHAR_MAX : null;
@@ -983,5 +985,7 @@ const index = {
     });
   }
 };
-module.exports = index;
+export {
+  index as default
+};
 //# sourceMappingURL=extension.js.map
