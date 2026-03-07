@@ -1,0 +1,25 @@
+{
+  "name": "roam-social-media-publisher",
+  "version": "0.1.0",
+  "description": "Publish from Roam to Twitter/X, Bluesky, and LessWrong",
+  "main": "dist/extension.js",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "oauth-1.0a": "^2.2.6"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "crypto-js": "^3.1.9-1"
+  }
+}
