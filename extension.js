@@ -798,51 +798,40 @@ const BUTTON_COMMANDS = [
 ];
 const observers = [];
 const styleEl = [];
+function processButton(button, command, target, extensionAPI) {
+  var _a2, _b, _c;
+  const blockEl = button.closest(".roam-block");
+  if (!blockEl) return;
+  const blockUid = (_b = (_a2 = blockEl.id) == null ? void 0 : _a2.match(/(.{9,12})$/)) == null ? void 0 : _b[1];
+  if (!blockUid) return;
+  if ((_c = button.parentElement) == null ? void 0 : _c.querySelector(`.smp-overlay-${command}`)) return;
+  const span = document.createElement("span");
+  span.className = `smp-overlay-${command}`;
+  button.insertAdjacentElement("afterend", span);
+  renderPublishOverlay({ parent: span, blockUid, extensionAPI, target });
+}
 function createButtonObserver(command, target, extensionAPI) {
-  const processButton = (el) => {
-    var _a2, _b, _c;
-    const blockEl = el.closest(".roam-block");
-    if (!blockEl) return;
-    const blockUid = (_b = (_a2 = blockEl.id) == null ? void 0 : _a2.match(/(.{9,12})$/)) == null ? void 0 : _b[1];
-    if (!blockUid) return;
-    const container = el.closest(".rm-block-main") || el.parentElement;
-    if (!container) return;
-    if (container.querySelector(`.smp-overlay-${command}`)) return;
-    const span = document.createElement("span");
-    span.className = `smp-overlay-${command}`;
-    const refArea = ((_c = el.closest(".rm-block__controls")) == null ? void 0 : _c.nextElementSibling) || el.parentElement;
-    if (refArea) {
-      refArea.appendChild(span);
-    }
-    renderPublishOverlay({ parent: span, blockUid, extensionAPI, target });
+  const selector = `button.bp3-button.dont-focus-block[data-tag="${command}"]`;
+  const scanAndProcess = (root) => {
+    root.querySelectorAll(selector).forEach((btn) => {
+      processButton(btn, command, target, extensionAPI);
+    });
   };
+  scanAndProcess(document);
   const observer = new MutationObserver((mutations) => {
+    var _a2;
     for (const mutation of mutations) {
       for (const node of Array.from(mutation.addedNodes)) {
-        if (node instanceof HTMLElement) {
-          const buttons = node.querySelectorAll ? node.querySelectorAll(`[data-tag="${command}"], .rm-block__input`) : [];
-          buttons.forEach((btn) => {
-            if (btn instanceof HTMLElement) {
-              const text = btn.textContent || "";
-              if (text.includes(`{{${command}}}`)) {
-                processButton(btn);
-              }
-            }
-          });
+        if (!(node instanceof HTMLElement)) continue;
+        if ((_a2 = node.matches) == null ? void 0 : _a2.call(node, selector)) {
+          processButton(node, command, target, extensionAPI);
         }
+        scanAndProcess(node);
       }
     }
   });
   observer.observe(document.body, { childList: true, subtree: true });
   observers.push(observer);
-  document.querySelectorAll(".roam-block").forEach((block) => {
-    const text = block.textContent || "";
-    for (const { command: cmd, target: tgt } of BUTTON_COMMANDS) {
-      if (text.includes(`{{${cmd}}}`)) {
-        processButton(block);
-      }
-    }
-  });
 }
 function addStyles() {
   const style = document.createElement("style");

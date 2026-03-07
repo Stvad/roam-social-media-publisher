@@ -15,71 +15,62 @@ const BUTTON_COMMANDS: { command: string; target: "all" | PlatformId }[] = [
 const observers: MutationObserver[] = [];
 const styleEl: HTMLStyleElement[] = [];
 
+function processButton(
+  button: HTMLElement,
+  command: string,
+  target: "all" | PlatformId,
+  extensionAPI: ExtensionAPI
+) {
+  // Find the block UID from the enclosing roam-block container
+  const blockEl = button.closest(".roam-block") as HTMLElement;
+  if (!blockEl) return;
+  const blockUid = blockEl.id?.match(/(.{9,12})$/)?.[1];
+  if (!blockUid) return;
+
+  // Check if we already rendered our overlay next to this button
+  if (button.parentElement?.querySelector(`.smp-overlay-${command}`)) return;
+
+  // Create overlay span and insert right after the button
+  const span = document.createElement("span");
+  span.className = `smp-overlay-${command}`;
+  button.insertAdjacentElement("afterend", span);
+
+  renderPublishOverlay({ parent: span, blockUid, extensionAPI, target });
+}
+
 function createButtonObserver(
   command: string,
   target: "all" | PlatformId,
   extensionAPI: ExtensionAPI
 ) {
-  const className = `roamjs-${command}-button`;
+  const selector = `button.bp3-button.dont-focus-block[data-tag="${command}"]`;
 
-  const processButton = (el: HTMLElement) => {
-    const blockEl = el.closest(".roam-block") as HTMLElement;
-    if (!blockEl) return;
-    const blockUid = blockEl.id?.match(/(.{9,12})$/)?.[1];
-    if (!blockUid) return;
-
-    // Replace the button with our publish overlay
-    const container = el.closest(".rm-block-main") || el.parentElement;
-    if (!container) return;
-
-    // Check if we already rendered
-    if (container.querySelector(`.smp-overlay-${command}`)) return;
-
-    const span = document.createElement("span");
-    span.className = `smp-overlay-${command}`;
-    // Insert after the button content area
-    const refArea = el.closest(".rm-block__controls")?.nextElementSibling || el.parentElement;
-    if (refArea) {
-      refArea.appendChild(span);
-    }
-
-    renderPublishOverlay({ parent: span, blockUid, extensionAPI, target });
+  const scanAndProcess = (root: HTMLElement | Document) => {
+    root.querySelectorAll(selector).forEach((btn) => {
+      processButton(btn as HTMLElement, command, target, extensionAPI);
+    });
   };
 
-  // Observe DOM for button appearances
+  // Process existing buttons already on page
+  scanAndProcess(document);
+
+  // Observe DOM for new buttons appearing (page navigation, block expansion, etc.)
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       for (const node of Array.from(mutation.addedNodes)) {
-        if (node instanceof HTMLElement) {
-          // Look for Roam button blocks with our command
-          const buttons = node.querySelectorAll
-            ? node.querySelectorAll(`[data-tag="${command}"], .rm-block__input`)
-            : [];
-          buttons.forEach((btn) => {
-            if (btn instanceof HTMLElement) {
-              const text = btn.textContent || "";
-              if (text.includes(`{{${command}}}`)) {
-                processButton(btn);
-              }
-            }
-          });
+        if (!(node instanceof HTMLElement)) continue;
+        // Check if the added node itself is a matching button
+        if (node.matches?.(selector)) {
+          processButton(node, command, target, extensionAPI);
         }
+        // Check descendants of the added node
+        scanAndProcess(node);
       }
     }
   });
 
   observer.observe(document.body, { childList: true, subtree: true });
   observers.push(observer);
-
-  // Process existing buttons on page
-  document.querySelectorAll(".roam-block").forEach((block) => {
-    const text = block.textContent || "";
-    for (const { command: cmd, target: tgt } of BUTTON_COMMANDS) {
-      if (text.includes(`{{${cmd}}}`)) {
-        processButton(block as HTMLElement);
-      }
-    }
-  });
 }
 
 function addStyles() {
