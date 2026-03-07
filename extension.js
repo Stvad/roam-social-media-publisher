@@ -1,0 +1,987 @@
+"use strict";
+var _a;
+const React = require("react");
+const ReactDOM = require("react-dom");
+const CryptoJS = require("crypto-js");
+function getCorsProxyUrl() {
+  var _a2, _b;
+  return ((_b = (_a2 = window.roamAlphaAPI) == null ? void 0 : _a2.constants) == null ? void 0 : _b.corsAnywhereProxyUrl) || "";
+}
+function resolveBlockText(text) {
+  let resolved = text;
+  const blockRefRegex = /\(\(([a-zA-Z0-9_-]{9,12})\)\)/g;
+  resolved = resolved.replace(blockRefRegex, (_, uid) => {
+    try {
+      const result = window.roamAlphaAPI.data.pull("[:block/string]", [":block/uid", uid]);
+      return (result == null ? void 0 : result[":block/string"]) || `((${uid}))`;
+    } catch {
+      return `((${uid}))`;
+    }
+  });
+  resolved = resolved.replace(/\[\[([^\]]+)\]\]/g, "$1");
+  resolved = resolved.replace(/#\[\[([^\]]+)\]\]/g, "$1");
+  resolved = resolved.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "$2");
+  resolved = resolved.replace(/\{\{[^}]*\}\}/g, "").trim();
+  return resolved;
+}
+function getChildBlocks(blockUid) {
+  try {
+    const result = window.roamAlphaAPI.data.pull(
+      "[:block/string :block/uid :block/order {:block/children [:block/string :block/uid :block/order]}]",
+      [":block/uid", blockUid]
+    );
+    const children = (result == null ? void 0 : result[":block/children"]) || [];
+    return children.sort((a, b) => a[":block/order"] - b[":block/order"]).map((c) => ({
+      uid: c[":block/uid"],
+      text: c[":block/string"] || ""
+    }));
+  } catch {
+    return [];
+  }
+}
+function getDefaultExportFromCjs(x) {
+  return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
+}
+var oauth1_0a = { exports: {} };
+(function(module2, exports$1) {
+  {
+    module2.exports = OAuth2;
+  }
+  function OAuth2(opts) {
+    if (!(this instanceof OAuth2)) {
+      return new OAuth2(opts);
+    }
+    if (!opts) {
+      opts = {};
+    }
+    if (!opts.consumer) {
+      throw new Error("consumer option is required");
+    }
+    this.consumer = opts.consumer;
+    this.nonce_length = opts.nonce_length || 32;
+    this.version = opts.version || "1.0";
+    this.parameter_seperator = opts.parameter_seperator || ", ";
+    this.realm = opts.realm;
+    if (typeof opts.last_ampersand === "undefined") {
+      this.last_ampersand = true;
+    } else {
+      this.last_ampersand = opts.last_ampersand;
+    }
+    this.signature_method = opts.signature_method || "PLAINTEXT";
+    if (this.signature_method == "PLAINTEXT" && !opts.hash_function) {
+      opts.hash_function = function(base_string, key) {
+        return key;
+      };
+    }
+    if (!opts.hash_function) {
+      throw new Error("hash_function option is required");
+    }
+    this.hash_function = opts.hash_function;
+    this.body_hash_function = opts.body_hash_function || this.hash_function;
+  }
+  OAuth2.prototype.authorize = function(request, token) {
+    var oauth_data = {
+      oauth_consumer_key: this.consumer.key,
+      oauth_nonce: this.getNonce(),
+      oauth_signature_method: this.signature_method,
+      oauth_timestamp: this.getTimeStamp(),
+      oauth_version: this.version
+    };
+    if (!token) {
+      token = {};
+    }
+    if (token.key !== void 0) {
+      oauth_data.oauth_token = token.key;
+    }
+    if (!request.data) {
+      request.data = {};
+    }
+    if (request.includeBodyHash) {
+      oauth_data.oauth_body_hash = this.getBodyHash(request, token.secret);
+    }
+    oauth_data.oauth_signature = this.getSignature(request, token.secret, oauth_data);
+    return oauth_data;
+  };
+  OAuth2.prototype.getSignature = function(request, token_secret, oauth_data) {
+    return this.hash_function(this.getBaseString(request, oauth_data), this.getSigningKey(token_secret));
+  };
+  OAuth2.prototype.getBodyHash = function(request, token_secret) {
+    var body = typeof request.data === "string" ? request.data : JSON.stringify(request.data);
+    if (!this.body_hash_function) {
+      throw new Error("body_hash_function option is required");
+    }
+    return this.body_hash_function(body, this.getSigningKey(token_secret));
+  };
+  OAuth2.prototype.getBaseString = function(request, oauth_data) {
+    return request.method.toUpperCase() + "&" + this.percentEncode(this.getBaseUrl(request.url)) + "&" + this.percentEncode(this.getParameterString(request, oauth_data));
+  };
+  OAuth2.prototype.getParameterString = function(request, oauth_data) {
+    var base_string_data;
+    if (oauth_data.oauth_body_hash) {
+      base_string_data = this.sortObject(this.percentEncodeData(this.mergeObject(oauth_data, this.deParamUrl(request.url))));
+    } else {
+      base_string_data = this.sortObject(this.percentEncodeData(this.mergeObject(oauth_data, this.mergeObject(request.data, this.deParamUrl(request.url)))));
+    }
+    var data_str = "";
+    for (var i = 0; i < base_string_data.length; i++) {
+      var key = base_string_data[i].key;
+      var value = base_string_data[i].value;
+      if (value && Array.isArray(value)) {
+        value.sort();
+        var valString = "";
+        value.forEach((function(item, i2) {
+          valString += key + "=" + item;
+          if (i2 < value.length) {
+            valString += "&";
+          }
+        }).bind(this));
+        data_str += valString;
+      } else {
+        data_str += key + "=" + value + "&";
+      }
+    }
+    data_str = data_str.substr(0, data_str.length - 1);
+    return data_str;
+  };
+  OAuth2.prototype.getSigningKey = function(token_secret) {
+    token_secret = token_secret || "";
+    if (!this.last_ampersand && !token_secret) {
+      return this.percentEncode(this.consumer.secret);
+    }
+    return this.percentEncode(this.consumer.secret) + "&" + this.percentEncode(token_secret);
+  };
+  OAuth2.prototype.getBaseUrl = function(url) {
+    return url.split("?")[0];
+  };
+  OAuth2.prototype.deParam = function(string) {
+    var arr = string.split("&");
+    var data = {};
+    for (var i = 0; i < arr.length; i++) {
+      var item = arr[i].split("=");
+      item[1] = item[1] || "";
+      if (data[item[0]]) {
+        if (!Array.isArray(data[item[0]])) {
+          data[item[0]] = [data[item[0]]];
+        }
+        data[item[0]].push(decodeURIComponent(item[1]));
+      } else {
+        data[item[0]] = decodeURIComponent(item[1]);
+      }
+    }
+    return data;
+  };
+  OAuth2.prototype.deParamUrl = function(url) {
+    var tmp = url.split("?");
+    if (tmp.length === 1)
+      return {};
+    return this.deParam(tmp[1]);
+  };
+  OAuth2.prototype.percentEncode = function(str) {
+    return encodeURIComponent(str).replace(/\!/g, "%21").replace(/\*/g, "%2A").replace(/\'/g, "%27").replace(/\(/g, "%28").replace(/\)/g, "%29");
+  };
+  OAuth2.prototype.percentEncodeData = function(data) {
+    var result = {};
+    for (var key in data) {
+      var value = data[key];
+      if (value && Array.isArray(value)) {
+        var newValue = [];
+        value.forEach((function(val) {
+          newValue.push(this.percentEncode(val));
+        }).bind(this));
+        value = newValue;
+      } else {
+        value = this.percentEncode(value);
+      }
+      result[this.percentEncode(key)] = value;
+    }
+    return result;
+  };
+  OAuth2.prototype.toHeader = function(oauth_data) {
+    var sorted = this.sortObject(oauth_data);
+    var header_value = "OAuth ";
+    if (this.realm) {
+      header_value += 'realm="' + this.realm + '"' + this.parameter_seperator;
+    }
+    for (var i = 0; i < sorted.length; i++) {
+      if (sorted[i].key.indexOf("oauth_") !== 0)
+        continue;
+      header_value += this.percentEncode(sorted[i].key) + '="' + this.percentEncode(sorted[i].value) + '"' + this.parameter_seperator;
+    }
+    return {
+      Authorization: header_value.substr(0, header_value.length - this.parameter_seperator.length)
+      //cut the last chars
+    };
+  };
+  OAuth2.prototype.getNonce = function() {
+    var word_characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    var result = "";
+    for (var i = 0; i < this.nonce_length; i++) {
+      result += word_characters[parseInt(Math.random() * word_characters.length, 10)];
+    }
+    return result;
+  };
+  OAuth2.prototype.getTimeStamp = function() {
+    return parseInt((/* @__PURE__ */ new Date()).getTime() / 1e3, 10);
+  };
+  OAuth2.prototype.mergeObject = function(obj1, obj2) {
+    obj1 = obj1 || {};
+    obj2 = obj2 || {};
+    var merged_obj = obj1;
+    for (var key in obj2) {
+      merged_obj[key] = obj2[key];
+    }
+    return merged_obj;
+  };
+  OAuth2.prototype.sortObject = function(data) {
+    var keys = Object.keys(data);
+    var result = [];
+    keys.sort();
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      result.push({
+        key,
+        value: data[key]
+      });
+    }
+    return result;
+  };
+})(oauth1_0a);
+var oauth1_0aExports = oauth1_0a.exports;
+const OAuth = /* @__PURE__ */ getDefaultExportFromCjs(oauth1_0aExports);
+const TWITTER_CHAR_LIMIT = 280;
+const TWITTER_API_BASE = "https://api.x.com/2";
+function getCredentials$2(extensionAPI) {
+  const apiKey = extensionAPI.settings.get("twitter-api-key");
+  const apiSecret = extensionAPI.settings.get("twitter-api-secret");
+  const accessToken = extensionAPI.settings.get("twitter-access-token");
+  const accessTokenSecret = extensionAPI.settings.get("twitter-access-token-secret");
+  if (!apiKey || !apiSecret || !accessToken || !accessTokenSecret) return null;
+  return { apiKey, apiSecret, accessToken, accessTokenSecret };
+}
+function createOAuthHeader(creds, url, method) {
+  const oauth = new OAuth({
+    consumer: { key: creds.apiKey, secret: creds.apiSecret },
+    signature_method: "HMAC-SHA1",
+    hash_function(baseString, key) {
+      return CryptoJS.HmacSHA1(baseString, key).toString(CryptoJS.enc.Base64);
+    }
+  });
+  const token = { key: creds.accessToken, secret: creds.accessTokenSecret };
+  const authHeader = oauth.toHeader(oauth.authorize({ url, method }, token));
+  return authHeader.Authorization;
+}
+function isTwitterConfigured(extensionAPI) {
+  return getCredentials$2(extensionAPI) !== null;
+}
+function validateTwitterThread(blocks) {
+  const errors = [];
+  const counts = [];
+  for (const block of blocks) {
+    const text = resolveBlockText(block.text);
+    const len = text.length;
+    counts.push({ uid: block.uid, count: len });
+    if (len === 0) {
+      errors.push({ uid: block.uid, reason: "Tweet is empty" });
+    } else if (len > TWITTER_CHAR_LIMIT) {
+      errors.push({ uid: block.uid, reason: `Tweet is ${len - TWITTER_CHAR_LIMIT} chars over limit` });
+    }
+  }
+  return { valid: errors.length === 0, errors, counts };
+}
+async function postToTwitter(content, extensionAPI) {
+  var _a2;
+  const creds = getCredentials$2(extensionAPI);
+  if (!creds) {
+    return { success: false, platform: "twitter", error: "Twitter credentials not configured" };
+  }
+  const corsProxy = getCorsProxyUrl();
+  let inReplyToId;
+  let firstTweetUrl;
+  for (const block of content.blocks) {
+    const text = resolveBlockText(block.text);
+    const url = `${TWITTER_API_BASE}/tweets`;
+    const body = { text };
+    if (inReplyToId) {
+      body.reply = { in_reply_to_tweet_id: inReplyToId };
+    }
+    const authorization = createOAuthHeader(creds, url, "POST");
+    try {
+      const response = await fetch(`${corsProxy}/${url}`, {
+        method: "POST",
+        headers: {
+          Authorization: authorization,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = (errorData == null ? void 0 : errorData.detail) || (errorData == null ? void 0 : errorData.title) || `HTTP ${response.status}`;
+        return { success: false, platform: "twitter", error: errorMsg };
+      }
+      const data = await response.json();
+      const tweetId = (_a2 = data.data) == null ? void 0 : _a2.id;
+      inReplyToId = tweetId;
+      if (!firstTweetUrl && tweetId) {
+        firstTweetUrl = `https://x.com/i/web/status/${tweetId}`;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, platform: "twitter", error: msg };
+    }
+  }
+  return { success: true, platform: "twitter", url: firstTweetUrl };
+}
+const TWITTER_CHAR_MAX = TWITTER_CHAR_LIMIT;
+const BLUESKY_CHAR_LIMIT = 300;
+const BSKY_API_BASE = "https://bsky.social/xrpc";
+function getCredentials$1(extensionAPI) {
+  const handle = extensionAPI.settings.get("bluesky-handle");
+  const appPassword = extensionAPI.settings.get("bluesky-app-password");
+  if (!handle || !appPassword) return null;
+  return { handle, appPassword };
+}
+async function createSession(handle, appPassword) {
+  const corsProxy = getCorsProxyUrl();
+  const url = `${BSKY_API_BASE}/com.atproto.server.createSession`;
+  const response = await fetch(`${corsProxy}/${url}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier: handle, password: appPassword })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error((err == null ? void 0 : err.message) || `Bluesky auth failed: ${response.status}`);
+  }
+  const data = await response.json();
+  return { accessJwt: data.accessJwt, did: data.did };
+}
+function detectFacets(text) {
+  const encoder = new TextEncoder();
+  const facets = [];
+  const urlRegex = /https?:\/\/[^\s)>\]]+/g;
+  let match;
+  while ((match = urlRegex.exec(text)) !== null) {
+    const beforeBytes = encoder.encode(text.slice(0, match.index)).byteLength;
+    const matchBytes = encoder.encode(match[0]).byteLength;
+    facets.push({
+      index: { byteStart: beforeBytes, byteEnd: beforeBytes + matchBytes },
+      features: [{ $type: "app.bsky.richtext.facet#link", uri: match[0] }]
+    });
+  }
+  const mentionRegex = /@([a-zA-Z0-9._-]+(?:\.[a-zA-Z0-9._-]+)*)/g;
+  while ((match = mentionRegex.exec(text)) !== null) {
+    const handle = match[1];
+    if (handle.includes(".")) {
+      const beforeBytes = encoder.encode(text.slice(0, match.index)).byteLength;
+      const matchBytes = encoder.encode(match[0]).byteLength;
+      facets.push({
+        index: { byteStart: beforeBytes, byteEnd: beforeBytes + matchBytes },
+        features: [{ $type: "app.bsky.richtext.facet#mention", did: handle }]
+      });
+    }
+  }
+  return facets;
+}
+function isBlueskyConfigured(extensionAPI) {
+  return getCredentials$1(extensionAPI) !== null;
+}
+function validateBlueskyThread(blocks) {
+  const errors = [];
+  const counts = [];
+  for (const block of blocks) {
+    const text = resolveBlockText(block.text);
+    const len = [...text].length;
+    counts.push({ uid: block.uid, count: len });
+    if (len === 0) {
+      errors.push({ uid: block.uid, reason: "Post is empty" });
+    } else if (len > BLUESKY_CHAR_LIMIT) {
+      errors.push({ uid: block.uid, reason: `Post is ${len - BLUESKY_CHAR_LIMIT} chars over limit` });
+    }
+  }
+  return { valid: errors.length === 0, errors, counts };
+}
+async function postToBluesky(content, extensionAPI) {
+  const creds = getCredentials$1(extensionAPI);
+  if (!creds) {
+    return { success: false, platform: "bluesky", error: "Bluesky credentials not configured" };
+  }
+  let session;
+  try {
+    session = await createSession(creds.handle, creds.appPassword);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, platform: "bluesky", error: msg };
+  }
+  const corsProxy = getCorsProxyUrl();
+  let rootRef;
+  let parentRef;
+  let firstPostUri;
+  for (const block of content.blocks) {
+    const text = resolveBlockText(block.text);
+    const facets = detectFacets(text);
+    const record = {
+      $type: "app.bsky.feed.post",
+      text,
+      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    if (facets.length > 0) {
+      record.facets = facets;
+    }
+    if (parentRef && rootRef) {
+      record.reply = { root: rootRef, parent: parentRef };
+    }
+    const url = `${BSKY_API_BASE}/com.atproto.repo.createRecord`;
+    try {
+      const response = await fetch(`${corsProxy}/${url}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.accessJwt}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          repo: session.did,
+          collection: "app.bsky.feed.post",
+          record
+        })
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        return {
+          success: false,
+          platform: "bluesky",
+          error: (errData == null ? void 0 : errData.message) || `HTTP ${response.status}`
+        };
+      }
+      const data = await response.json();
+      const ref = { uri: data.uri, cid: data.cid };
+      if (!rootRef) {
+        rootRef = ref;
+        const rkey = data.uri.split("/").pop();
+        firstPostUri = `https://bsky.app/profile/${creds.handle}/post/${rkey}`;
+      }
+      parentRef = ref;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, platform: "bluesky", error: msg };
+    }
+  }
+  return { success: true, platform: "bluesky", url: firstPostUri };
+}
+const BLUESKY_CHAR_MAX = BLUESKY_CHAR_LIMIT;
+const LW_GRAPHQL_URL = "https://www.lesswrong.com/graphql";
+function getCredentials(extensionAPI) {
+  const loginToken = extensionAPI.settings.get("lesswrong-login-token");
+  if (!loginToken) return null;
+  return { loginToken };
+}
+function blocksToHtml(blocks) {
+  const paragraphs = blocks.map((b) => {
+    const text = resolveBlockText(b.text);
+    const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    let html = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>").replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+    return `<p>${html}</p>`;
+  });
+  return paragraphs.join("\n");
+}
+function isLessWrongConfigured(extensionAPI) {
+  return getCredentials(extensionAPI) !== null;
+}
+async function postToLessWrong(content, extensionAPI) {
+  var _a2, _b, _c, _d;
+  const creds = getCredentials(extensionAPI);
+  if (!creds) {
+    return { success: false, platform: "lesswrong", error: "LessWrong login token not configured" };
+  }
+  const corsProxy = getCorsProxyUrl();
+  const html = blocksToHtml(content.blocks);
+  const mutation = `
+    mutation CreateComment($data: CreateCommentDataInput!) {
+      createComment(data: $data) {
+        data {
+          _id
+          postId
+          user {
+            slug
+          }
+        }
+      }
+    }
+  `;
+  const variables = {
+    data: {
+      shortform: true,
+      shortformFrontpage: true,
+      contents: {
+        originalContents: {
+          type: "html",
+          data: html
+        }
+      }
+    }
+  };
+  try {
+    const response = await fetch(`${corsProxy}/${LW_GRAPHQL_URL}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        loginToken: creds.loginToken
+      },
+      body: JSON.stringify({ query: mutation, variables })
+    });
+    if (!response.ok) {
+      return {
+        success: false,
+        platform: "lesswrong",
+        error: `HTTP ${response.status}`
+      };
+    }
+    const result = await response.json();
+    if ((_a2 = result.errors) == null ? void 0 : _a2.length) {
+      return {
+        success: false,
+        platform: "lesswrong",
+        error: result.errors.map((e) => e.message).join(", ")
+      };
+    }
+    const commentData = (_c = (_b = result.data) == null ? void 0 : _b.createComment) == null ? void 0 : _c.data;
+    const userSlug = (_d = commentData == null ? void 0 : commentData.user) == null ? void 0 : _d.slug;
+    const commentId = commentData == null ? void 0 : commentData._id;
+    const url = userSlug ? `https://www.lesswrong.com/users/${userSlug}?tab=shortform` : void 0;
+    return { success: true, platform: "lesswrong", url };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, platform: "lesswrong", error: msg };
+  }
+}
+const Blueprint = (_a = window.Blueprint) == null ? void 0 : _a.Core;
+const { Button, Popover, Spinner, Icon, Alert, Tooltip, Checkbox } = Blueprint;
+const PLATFORM_LABELS = {
+  twitter: "X / Twitter",
+  bluesky: "Bluesky",
+  lesswrong: "LessWrong"
+};
+const PlatformIcon = ({ platform, size = 14 }) => {
+  const icons = {
+    twitter: "𝕏",
+    bluesky: "🦋",
+    lesswrong: "LW"
+  };
+  return /* @__PURE__ */ React.createElement("span", { style: { fontSize: size, fontWeight: "bold", marginRight: 4 } }, icons[platform]);
+};
+const ResultLine = ({ result }) => /* @__PURE__ */ React.createElement("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4 } }, /* @__PURE__ */ React.createElement(PlatformIcon, { platform: result.platform }), result.success ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Icon, { icon: "tick-circle", intent: "success", size: 14 }), result.url && /* @__PURE__ */ React.createElement("a", { href: result.url, target: "_blank", rel: "noopener noreferrer", style: { fontSize: 12 } }, "View post")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Icon, { icon: "error", intent: "danger", size: 14 }), /* @__PURE__ */ React.createElement("span", { style: { color: "red", fontSize: 12 } }, result.error)));
+const PublishContent = ({ blockUid, extensionAPI, target, close }) => {
+  const blocks = React.useMemo(() => getChildBlocks(blockUid), [blockUid]);
+  const [sending, setSending] = React.useState(false);
+  const [results, setResults] = React.useState([]);
+  const [selectedPlatforms, setSelectedPlatforms] = React.useState(() => {
+    const set = /* @__PURE__ */ new Set();
+    if (target === "all") {
+      if (isTwitterConfigured(extensionAPI)) set.add("twitter");
+      if (isBlueskyConfigured(extensionAPI)) set.add("bluesky");
+      if (isLessWrongConfigured(extensionAPI)) set.add("lesswrong");
+    } else {
+      set.add(target);
+    }
+    return set;
+  });
+  const togglePlatform = React.useCallback((p) => {
+    setSelectedPlatforms((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  }, []);
+  const validation = React.useMemo(() => {
+    const errors = [];
+    if (blocks.length === 0) {
+      errors.push("No child blocks found. Add content as child blocks.");
+    }
+    if (selectedPlatforms.has("twitter")) {
+      const v = validateTwitterThread(blocks);
+      if (!v.valid) {
+        v.errors.forEach((e) => errors.push(`Twitter: ${e.reason} (block ${e.uid})`));
+      }
+    }
+    if (selectedPlatforms.has("bluesky")) {
+      const v = validateBlueskyThread(blocks);
+      if (!v.valid) {
+        v.errors.forEach((e) => errors.push(`Bluesky: ${e.reason} (block ${e.uid})`));
+      }
+    }
+    return { valid: errors.length === 0, errors };
+  }, [blocks, selectedPlatforms]);
+  const onPublish = React.useCallback(async () => {
+    var _a2;
+    setSending(true);
+    setResults([]);
+    const content = { blocks };
+    const newResults = [];
+    const promises = [];
+    if (selectedPlatforms.has("twitter")) {
+      promises.push(postToTwitter(content, extensionAPI));
+    }
+    if (selectedPlatforms.has("bluesky")) {
+      promises.push(postToBluesky(content, extensionAPI));
+    }
+    if (selectedPlatforms.has("lesswrong")) {
+      promises.push(postToLessWrong(content, extensionAPI));
+    }
+    const settled = await Promise.allSettled(promises);
+    for (const r of settled) {
+      if (r.status === "fulfilled") {
+        newResults.push(r.value);
+      } else {
+        newResults.push({ success: false, platform: "twitter", error: ((_a2 = r.reason) == null ? void 0 : _a2.message) || "Unknown error" });
+      }
+    }
+    setResults(newResults);
+    setSending(false);
+  }, [blocks, selectedPlatforms, extensionAPI]);
+  const allConfigured = React.useMemo(() => {
+    const platforms = [];
+    if (isTwitterConfigured(extensionAPI)) platforms.push("twitter");
+    if (isBlueskyConfigured(extensionAPI)) platforms.push("bluesky");
+    if (isLessWrongConfigured(extensionAPI)) platforms.push("lesswrong");
+    return platforms;
+  }, [extensionAPI]);
+  const allDone = results.length > 0 && !sending;
+  const allSuccess = allDone && results.every((r) => r.success);
+  return /* @__PURE__ */ React.createElement("div", { style: { padding: 16, maxWidth: 360, minWidth: 280 } }, allConfigured.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { color: "#888" } }, "No platforms configured. Open extension settings to add credentials.") : /* @__PURE__ */ React.createElement(React.Fragment, null, target === "all" && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 600, marginBottom: 4, fontSize: 13 } }, "Publish to:"), allConfigured.map((p) => /* @__PURE__ */ React.createElement(
+    Checkbox,
+    {
+      key: p,
+      checked: selectedPlatforms.has(p),
+      onChange: () => togglePlatform(p),
+      label: /* @__PURE__ */ React.createElement("span", { style: { display: "inline-flex", alignItems: "center" } }, /* @__PURE__ */ React.createElement(PlatformIcon, { platform: p }), PLATFORM_LABELS[p]),
+      style: { marginBottom: 2 }
+    }
+  ))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 8, fontSize: 12, color: "#666" } }, blocks.length, " block", blocks.length !== 1 ? "s" : "", " to publish", selectedPlatforms.has("twitter") && ` (thread of ${blocks.length} tweet${blocks.length !== 1 ? "s" : ""})`), !validation.valid && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 8, padding: 8, background: "#fff3f3", borderRadius: 4, fontSize: 12 } }, validation.errors.map((e, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { color: "red" } }, e))), !allDone && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement(
+    Button,
+    {
+      intent: "primary",
+      text: "Publish",
+      onClick: onPublish,
+      disabled: !validation.valid || sending || selectedPlatforms.size === 0
+    }
+  ), sending && /* @__PURE__ */ React.createElement(Spinner, { size: 20 })), results.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 8 } }, results.map((r, i) => /* @__PURE__ */ React.createElement(ResultLine, { key: i, result: r })), allSuccess && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 8, color: "green", fontSize: 12 } }, "All posts published successfully!"))));
+};
+const PublishOverlay = ({ childrenRef, unmount, ...props }) => {
+  const { blockUid, extensionAPI, target } = props;
+  const [isOpen, setIsOpen] = React.useState(false);
+  const rootRef = React.useRef(null);
+  const blocks = React.useMemo(() => getChildBlocks(blockUid), [blockUid]);
+  const charCounts = React.useMemo(() => {
+    return blocks.map((b) => {
+      const text = resolveBlockText(b.text);
+      return {
+        uid: b.uid,
+        twitter: text.length,
+        bluesky: [...text].length
+      };
+    });
+  }, [blocks]);
+  const calcBlocks = React.useCallback(
+    () => Array.from((childrenRef == null ? void 0 : childrenRef.children) || []).filter((c) => c.className.includes("roam-block-container")).map(
+      (c) => Array.from(c.children).find(
+        (c2) => c2.className.includes("rm-block-main")
+      )
+    ),
+    [childrenRef]
+  );
+  const [blockElements, setBlockElements] = React.useState(calcBlocks);
+  const [liveCounts, setLiveCounts] = React.useState(charCounts);
+  React.useEffect(() => {
+    if (!childrenRef) return;
+    const listener = () => {
+      setBlockElements(calcBlocks());
+      const updatedBlocks = getChildBlocks(blockUid);
+      setLiveCounts(
+        updatedBlocks.map((b) => {
+          const text = resolveBlockText(b.text);
+          return { uid: b.uid, twitter: text.length, bluesky: [...text].length };
+        })
+      );
+    };
+    childrenRef.addEventListener("input", listener);
+    return () => childrenRef.removeEventListener("input", listener);
+  }, [childrenRef, blockUid, calcBlocks]);
+  React.useEffect(() => {
+    if (rootRef.current && !document.contains(rootRef.current.targetElement)) {
+      unmount();
+    }
+  });
+  const open = React.useCallback(() => setIsOpen(true), []);
+  const close = React.useCallback(() => setIsOpen(false), []);
+  const showTwitter = target === "all" || target === "twitter";
+  const showBluesky = target === "all" || target === "bluesky";
+  const charMax = showBluesky ? BLUESKY_CHAR_MAX : showTwitter ? TWITTER_CHAR_MAX : null;
+  const buttonLabel = target === "all" ? "📡" : target === "twitter" ? "𝕏" : target === "bluesky" ? "🦋" : "LW";
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+    Popover,
+    {
+      target: /* @__PURE__ */ React.createElement(
+        "span",
+        {
+          onClick: open,
+          style: {
+            cursor: "pointer",
+            marginLeft: 4,
+            fontSize: 14,
+            opacity: 0.8,
+            userSelect: "none"
+          },
+          title: `Publish to ${target === "all" ? "all platforms" : PLATFORM_LABELS[target]}`
+        },
+        buttonLabel
+      ),
+      content: /* @__PURE__ */ React.createElement(PublishContent, { ...props, close }),
+      isOpen,
+      onInteraction: (next) => setIsOpen(next),
+      ref: rootRef
+    }
+  ), charMax && liveCounts.map((c, i) => ({ ...c, el: blockElements[i] })).filter((c) => c.el).map((c) => {
+    const count = target === "bluesky" ? c.bluesky : c.twitter;
+    return ReactDOM.createPortal(
+      /* @__PURE__ */ React.createElement(
+        "span",
+        {
+          className: "smp-char-count",
+          style: {
+            color: count > charMax ? "red" : "#999",
+            fontSize: 11,
+            marginLeft: 4,
+            position: "relative"
+          }
+        },
+        count,
+        "/",
+        charMax
+      ),
+      c.el
+    );
+  }));
+};
+function renderPublishOverlay({
+  parent,
+  blockUid,
+  extensionAPI,
+  target
+}) {
+  var _a2;
+  const childrenRef = (_a2 = parent.closest(".rm-block-main")) == null ? void 0 : _a2.nextElementSibling;
+  if (childrenRef) {
+    Array.from(childrenRef.getElementsByClassName("smp-char-count")).forEach((s) => s.remove());
+  }
+  ReactDOM.render(
+    /* @__PURE__ */ React.createElement(
+      PublishOverlay,
+      {
+        blockUid,
+        extensionAPI,
+        target,
+        childrenRef,
+        unmount: () => ReactDOM.unmountComponentAtNode(parent)
+      }
+    ),
+    parent
+  );
+}
+const BUTTON_COMMANDS = [
+  { command: "publish", target: "all" },
+  { command: "tweet", target: "twitter" },
+  { command: "bsky", target: "bluesky" },
+  { command: "lesswrong", target: "lesswrong" }
+];
+const observers = [];
+const styleEl = [];
+function createButtonObserver(command, target, extensionAPI) {
+  const processButton = (el) => {
+    var _a2, _b, _c;
+    const blockEl = el.closest(".roam-block");
+    if (!blockEl) return;
+    const blockUid = (_b = (_a2 = blockEl.id) == null ? void 0 : _a2.match(/(.{9,12})$/)) == null ? void 0 : _b[1];
+    if (!blockUid) return;
+    const container = el.closest(".rm-block-main") || el.parentElement;
+    if (!container) return;
+    if (container.querySelector(`.smp-overlay-${command}`)) return;
+    const span = document.createElement("span");
+    span.className = `smp-overlay-${command}`;
+    const refArea = ((_c = el.closest(".rm-block__controls")) == null ? void 0 : _c.nextElementSibling) || el.parentElement;
+    if (refArea) {
+      refArea.appendChild(span);
+    }
+    renderPublishOverlay({ parent: span, blockUid, extensionAPI, target });
+  };
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of Array.from(mutation.addedNodes)) {
+        if (node instanceof HTMLElement) {
+          const buttons = node.querySelectorAll ? node.querySelectorAll(`[data-tag="${command}"], .rm-block__input`) : [];
+          buttons.forEach((btn) => {
+            if (btn instanceof HTMLElement) {
+              const text = btn.textContent || "";
+              if (text.includes(`{{${command}}}`)) {
+                processButton(btn);
+              }
+            }
+          });
+        }
+      }
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  observers.push(observer);
+  document.querySelectorAll(".roam-block").forEach((block) => {
+    const text = block.textContent || "";
+    for (const { command: cmd, target: tgt } of BUTTON_COMMANDS) {
+      if (text.includes(`{{${cmd}}}`)) {
+        processButton(block);
+      }
+    }
+  });
+}
+function addStyles() {
+  const style = document.createElement("style");
+  style.textContent = `
+    .smp-char-count {
+      font-family: monospace;
+      pointer-events: none;
+    }
+    .smp-overlay-publish,
+    .smp-overlay-tweet,
+    .smp-overlay-bsky,
+    .smp-overlay-lesswrong {
+      display: inline-block;
+      vertical-align: middle;
+    }
+  `;
+  document.head.appendChild(style);
+  styleEl.push(style);
+}
+const index = {
+  onload: ({ extensionAPI }) => {
+    addStyles();
+    extensionAPI.settings.panel.create({
+      tabTitle: "Social Media Publisher",
+      settings: [
+        // Twitter
+        {
+          id: "twitter-api-key",
+          name: "Twitter API Key",
+          description: "Consumer API Key from X Developer Portal",
+          action: { type: "input", placeholder: "API Key" }
+        },
+        {
+          id: "twitter-api-secret",
+          name: "Twitter API Secret",
+          description: "Consumer API Secret",
+          action: { type: "input", placeholder: "API Secret" }
+        },
+        {
+          id: "twitter-access-token",
+          name: "Twitter Access Token",
+          description: "User Access Token from X Developer Portal",
+          action: { type: "input", placeholder: "Access Token" }
+        },
+        {
+          id: "twitter-access-token-secret",
+          name: "Twitter Access Token Secret",
+          description: "User Access Token Secret",
+          action: { type: "input", placeholder: "Access Token Secret" }
+        },
+        // Bluesky
+        {
+          id: "bluesky-handle",
+          name: "Bluesky Handle",
+          description: "Your Bluesky handle (e.g., user.bsky.social)",
+          action: { type: "input", placeholder: "user.bsky.social" }
+        },
+        {
+          id: "bluesky-app-password",
+          name: "Bluesky App Password",
+          description: "App Password from Bluesky Settings > App Passwords",
+          action: { type: "input", placeholder: "xxxx-xxxx-xxxx-xxxx" }
+        },
+        // LessWrong
+        {
+          id: "lesswrong-login-token",
+          name: "LessWrong Login Token",
+          description: "Login token from browser cookies (cookie name: loginToken)",
+          action: { type: "input", placeholder: "Login Token" }
+        }
+      ]
+    });
+    extensionAPI.ui.commandPalette.addCommand({
+      label: "Social Media Publisher: Publish current block",
+      callback: () => {
+        const focused = window.roamAlphaAPI.ui.getFocusedBlock();
+        if (!focused) return;
+        const blockUid = focused["block-uid"];
+        const blockEl = document.querySelector(`[id$="${blockUid}"]`);
+        if (!blockEl) return;
+        const mainEl = blockEl.closest(".rm-block-main") || blockEl;
+        let overlay = mainEl.querySelector(".smp-overlay-publish");
+        if (!overlay) {
+          overlay = document.createElement("span");
+          overlay.className = "smp-overlay-publish";
+          mainEl.appendChild(overlay);
+        }
+        renderPublishOverlay({
+          parent: overlay,
+          blockUid,
+          extensionAPI,
+          target: "all"
+        });
+      }
+    });
+    window.roamAlphaAPI.ui.blockContextMenu.addCommand({
+      label: "Publish to Social Media",
+      callback: (context) => {
+        const blockUid = context["block-uid"];
+        const blockEl = document.querySelector(`[id$="${blockUid}"]`);
+        if (!blockEl) return;
+        const mainEl = blockEl.closest(".rm-block-main") || blockEl;
+        let overlay = mainEl.querySelector(".smp-overlay-publish");
+        if (!overlay) {
+          overlay = document.createElement("span");
+          overlay.className = "smp-overlay-publish";
+          mainEl.appendChild(overlay);
+        }
+        renderPublishOverlay({
+          parent: overlay,
+          blockUid,
+          extensionAPI,
+          target: "all"
+        });
+      }
+    });
+    for (const { command, target } of BUTTON_COMMANDS) {
+      createButtonObserver(command, target, extensionAPI);
+    }
+  },
+  onunload: () => {
+    var _a2, _b, _c, _d;
+    observers.forEach((o) => o.disconnect());
+    observers.length = 0;
+    styleEl.forEach((s) => s.remove());
+    styleEl.length = 0;
+    (_b = (_a2 = window.roamAlphaAPI.ui.commandPalette) == null ? void 0 : _a2.removeCommand) == null ? void 0 : _b.call(_a2, {
+      label: "Social Media Publisher: Publish current block"
+    });
+    (_d = (_c = window.roamAlphaAPI.ui.blockContextMenu) == null ? void 0 : _c.removeCommand) == null ? void 0 : _d.call(_c, {
+      label: "Publish to Social Media"
+    });
+    document.querySelectorAll('[class^="smp-overlay"]').forEach((el) => {
+      var _a3;
+      try {
+        (_a3 = window.ReactDOM) == null ? void 0 : _a3.unmountComponentAtNode(el);
+      } catch {
+      }
+      el.remove();
+    });
+  }
+};
+module.exports = index;
+//# sourceMappingURL=extension.js.map

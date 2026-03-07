@@ -2,7 +2,7 @@
   "name": "roam-social-media-publisher",
   "version": "0.1.0",
   "description": "Publish from Roam to Twitter/X, Bluesky, and LessWrong",
-  "main": "dist/extension.js",
+  "main": "extension.js",
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build",

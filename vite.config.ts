@@ -7,7 +7,8 @@ export default defineConfig({
       formats: ["cjs"],
       fileName: () => "extension.js",
     },
-    outDir: "dist",
+    outDir: ".",
+    emptyOutDir: false,
     rollupOptions: {
       external: ["react", "react-dom", "crypto-js"],
       output: {
