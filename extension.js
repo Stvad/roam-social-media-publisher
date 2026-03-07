@@ -143,14 +143,14 @@ async function sP(e, t) {
       schedulingType: "automatic",
       mode: "shareNow"
     }, v = d(l.mediaUrls);
-    v && (h.assets = v), p.length > 0 && (h.metadata = {
+    v && (h.assets = v), p.length > 0 && (h.metadata = [{
       twitter: {
         thread: p.map((A) => {
           const g = { text: A.text }, E = d(A.mediaUrls);
           return E && (g.assets = E), g;
         })
       }
-    });
+    }]);
     const b = (await zc(r, a, { input: h })).createPost;
     return b.message ? { success: !1, platform: "twitter", error: b.message } : { success: !0, platform: "twitter", url: ((c = b.post) == null ? void 0 : c.externalLink) || void 0 };
   } catch (d) {

@@ -159,8 +159,9 @@ export async function postToTwitter(
     if (firstAssets) input.assets = firstAssets;
 
     // Use Buffer's native thread support for multi-block threads
+    // metadata is typed as [PostInputMetaData] (array) in the Buffer schema
     if (threadBlocks.length > 0) {
-      input.metadata = {
+      input.metadata = [{
         twitter: {
           thread: threadBlocks.map((b) => {
             const item: Record<string, unknown> = { text: b.text };
@@ -169,7 +170,7 @@ export async function postToTwitter(
             return item;
           }),
         },
-      };
+      }];
     }
 
     const data = await bufferGraphQL(apiToken, mutation, { input });
