@@ -205,6 +205,34 @@ export default {
       },
     });
 
+    // Register slash commands to insert {{command}} and focus child block
+    const slashCommands = [
+      { label: "Tweet", buttonText: "tweet" },
+      { label: "Bluesky Post", buttonText: "bsky" },
+      { label: "LessWrong Post", buttonText: "lesswrong" },
+      { label: "Publish to All", buttonText: "publish" },
+    ];
+    for (const sc of slashCommands) {
+      window.roamAlphaAPI.ui.slashCommand.addCommand({
+        label: sc.label,
+        callback: async (context: { "block-uid": string }) => {
+          const blockUid = context["block-uid"];
+          await window.roamAlphaAPI.updateBlock({
+            block: { uid: blockUid, string: `{{[[${sc.buttonText}]]}}` },
+          });
+          const childUid = window.roamAlphaAPI.util.generateUID();
+          await window.roamAlphaAPI.createBlock({
+            location: { "parent-uid": blockUid, order: 0 },
+            block: { uid: childUid, string: "" },
+          });
+          await window.roamAlphaAPI.ui.setBlockFocusAndSelection({
+            location: { "block-uid": childUid, "window-id": "main-window" },
+          });
+          return null;
+        },
+      });
+    }
+
     // Watch for {{publish}}, {{tweet}}, {{bsky}}, {{lesswrong}} buttons
     for (const { command, target } of BUTTON_COMMANDS) {
       createButtonObserver(command, target, extensionAPI);
@@ -228,6 +256,11 @@ export default {
       "SMP: Publish to LessWrong",
     ]) {
       window.roamAlphaAPI.ui.commandPalette?.removeCommand?.({ label });
+    }
+
+    // Remove slash commands
+    for (const label of ["Tweet", "Bluesky Post", "LessWrong Post", "Publish to All"]) {
+      window.roamAlphaAPI.ui.slashCommand?.removeCommand?.({ label });
     }
 
     // Remove block context menu commands

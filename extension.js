@@ -42865,16 +42865,16 @@ const hne = {
         }
       ]
     });
-    function t(o, n) {
-      const i = document.querySelector(`[id$="${o}"]`);
-      if (!i) return;
-      const a = i.closest(".rm-block-main") || i, c = `smp-overlay-${n === "all" ? "publish" : n}`;
-      let d = a.querySelector(`.${c}`);
-      d || (d = document.createElement("span"), d.className = c, a.appendChild(d)), UC({
-        parent: d,
-        blockUid: o,
+    function t(n, i) {
+      const a = document.querySelector(`[id$="${n}"]`);
+      if (!a) return;
+      const c = a.closest(".rm-block-main") || a, d = `smp-overlay-${i === "all" ? "publish" : i}`;
+      let l = c.querySelector(`.${d}`);
+      l || (l = document.createElement("span"), l.className = d, c.appendChild(l)), UC({
+        parent: l,
+        blockUid: n,
         extensionAPI: e,
-        target: n
+        target: i
       });
     }
     const r = [
@@ -42883,42 +42883,67 @@ const hne = {
       { label: "SMP: Publish to Bluesky", target: "bluesky" },
       { label: "SMP: Publish to LessWrong", target: "lesswrong" }
     ];
-    for (const o of r)
+    for (const n of r)
       e.ui.commandPalette.addCommand({
-        label: o.label,
+        label: n.label,
         callback: () => {
-          const n = window.roamAlphaAPI.ui.getFocusedBlock();
-          n && t(n["block-uid"], o.target);
+          const i = window.roamAlphaAPI.ui.getFocusedBlock();
+          i && t(i["block-uid"], n.target);
         }
       });
     window.roamAlphaAPI.ui.blockContextMenu.addCommand({
       label: "Publish to Social Media",
-      callback: (o) => {
-        t(o["block-uid"], "all");
+      callback: (n) => {
+        t(n["block-uid"], "all");
       }
     });
-    for (const { command: o, target: n } of hre)
-      bre(o, n, e);
+    const o = [
+      { label: "Tweet", buttonText: "tweet" },
+      { label: "Bluesky Post", buttonText: "bsky" },
+      { label: "LessWrong Post", buttonText: "lesswrong" },
+      { label: "Publish to All", buttonText: "publish" }
+    ];
+    for (const n of o)
+      window.roamAlphaAPI.ui.slashCommand.addCommand({
+        label: n.label,
+        callback: async (i) => {
+          const a = i["block-uid"];
+          await window.roamAlphaAPI.updateBlock({
+            block: { uid: a, string: `{{[[${n.buttonText}]]}}` }
+          });
+          const c = window.roamAlphaAPI.util.generateUID();
+          return await window.roamAlphaAPI.createBlock({
+            location: { "parent-uid": a, order: 0 },
+            block: { uid: c, string: "" }
+          }), await window.roamAlphaAPI.ui.setBlockFocusAndSelection({
+            location: { "block-uid": c, "window-id": "main-window" }
+          }), null;
+        }
+      });
+    for (const { command: n, target: i } of hre)
+      bre(n, i, e);
   },
   onunload: () => {
-    var e, t, r, o;
-    ed.forEach((n) => n.disconnect()), ed.length = 0, td.forEach((n) => n.remove()), td.length = 0;
-    for (const n of [
+    var e, t, r, o, n, i;
+    ed.forEach((a) => a.disconnect()), ed.length = 0, td.forEach((a) => a.remove()), td.length = 0;
+    for (const a of [
       "SMP: Publish to all platforms",
       "SMP: Publish to Twitter/X",
       "SMP: Publish to Bluesky",
       "SMP: Publish to LessWrong"
     ])
-      (t = (e = window.roamAlphaAPI.ui.commandPalette) == null ? void 0 : e.removeCommand) == null || t.call(e, { label: n });
-    (o = (r = window.roamAlphaAPI.ui.blockContextMenu) == null ? void 0 : r.removeCommand) == null || o.call(r, {
+      (t = (e = window.roamAlphaAPI.ui.commandPalette) == null ? void 0 : e.removeCommand) == null || t.call(e, { label: a });
+    for (const a of ["Tweet", "Bluesky Post", "LessWrong Post", "Publish to All"])
+      (o = (r = window.roamAlphaAPI.ui.slashCommand) == null ? void 0 : r.removeCommand) == null || o.call(r, { label: a });
+    (i = (n = window.roamAlphaAPI.ui.blockContextMenu) == null ? void 0 : n.removeCommand) == null || i.call(n, {
       label: "Publish to Social Media"
-    }), document.querySelectorAll('[class^="smp-overlay"]').forEach((n) => {
-      var i;
+    }), document.querySelectorAll('[class^="smp-overlay"]').forEach((a) => {
+      var c;
       try {
-        (i = window.ReactDOM) == null || i.unmountComponentAtNode(n);
+        (c = window.ReactDOM) == null || c.unmountComponentAtNode(a);
       } catch {
       }
-      n.remove();
+      a.remove();
     });
   }
 };
