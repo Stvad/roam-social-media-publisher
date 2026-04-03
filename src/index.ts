@@ -12,8 +12,117 @@ const BUTTON_COMMANDS: { command: string; target: "all" | PlatformId }[] = [
   { command: "lesswrong", target: "lesswrong" },
 ];
 
+const SLASH_COMMANDS = [
+  { label: "Tweet", buttonText: "tweet" },
+  { label: "Bluesky Post", buttonText: "bsky" },
+  { label: "LessWrong Post", buttonText: "lesswrong" },
+  { label: "Publish to All", buttonText: "publish" },
+] as const;
+
 const observers: MutationObserver[] = [];
 const styleEl: HTMLStyleElement[] = [];
+const cleanupFns: Array<() => void> = [];
+
+function normalizeText(text: string) {
+  return text.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function getActiveBlockEditor() {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement)) return null;
+  return (
+    (active.closest(".rm-block__input, .rm-block-input, .dont-unfocus-block") as HTMLElement | null) ||
+    null
+  );
+}
+
+function getEditorText(editor: HTMLElement | null) {
+  if (!editor) return "";
+  if (editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement) {
+    return editor.value;
+  }
+  return editor.innerText || editor.textContent || "";
+}
+
+function isVisible(el: HTMLElement) {
+  const rect = el.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
+function isSelectedSlashCommandItem(el: HTMLElement) {
+  if (el.getAttribute("aria-selected") === "true" || el.getAttribute("aria-current") === "true") {
+    return true;
+  }
+  if (el.classList.contains("bp3-active") || el.classList.contains("bp3-intent-primary")) {
+    return true;
+  }
+  return Boolean(el.style.backgroundColor);
+}
+
+function getSlashCommandMenuItem() {
+  const labels = new Set(SLASH_COMMANDS.map((command) => normalizeText(command.label)));
+  const candidates = Array.from(
+    document.querySelectorAll<HTMLElement>(
+      [
+        ".bp3-popover .bp3-menu-item",
+        ".bp3-popover .rm-menu-item",
+        ".bp3-elevation-3 .bp3-menu-item",
+        ".bp3-elevation-3 .rm-menu-item",
+        ".bp3-elevation-3 button.bp3-button",
+      ].join(", ")
+    )
+  ).filter((el) => {
+    if (!isVisible(el)) return false;
+    const text = normalizeText(el.innerText || el.textContent || "");
+    return Array.from(labels).some((label) => text === label || text.startsWith(`${label} `));
+  });
+
+  return candidates.find((el) => isSelectedSlashCommandItem(el)) || (candidates.length === 1 ? candidates[0] : null);
+}
+
+function activateSlashCommandMenuItem(menuItem: HTMLElement) {
+  for (const type of ["mousedown", "mouseup", "click"] as const) {
+    menuItem.dispatchEvent(
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+      })
+    );
+  }
+}
+
+function installSlashCommandEnterGuard() {
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (
+      event.key !== "Enter" ||
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.shiftKey ||
+      event.ctrlKey ||
+      event.altKey ||
+      event.metaKey
+    ) {
+      return;
+    }
+
+    const editor = getActiveBlockEditor();
+    if (!editor) return;
+    if (!getEditorText(editor).trimStart().startsWith("/")) return;
+
+    const menuItem = getSlashCommandMenuItem();
+    if (!menuItem) return;
+
+    // Intercept Enter before Roam handles it as "split block", then trigger the selected slash item.
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    activateSlashCommandMenuItem(menuItem);
+  };
+
+  document.addEventListener("keydown", onKeyDown, true);
+  cleanupFns.push(() => document.removeEventListener("keydown", onKeyDown, true));
+}
 
 function processButton(
   button: HTMLElement,
@@ -124,6 +233,7 @@ function addStyles() {
 export default {
   onload: ({ extensionAPI }: OnloadArgs) => {
     addStyles();
+    installSlashCommandEnterGuard();
 
     // Register settings panel
     extensionAPI.settings.panel.create({
@@ -206,13 +316,7 @@ export default {
     });
 
     // Register slash commands to insert {{command}} and focus child block
-    const slashCommands = [
-      { label: "Tweet", buttonText: "tweet" },
-      { label: "Bluesky Post", buttonText: "bsky" },
-      { label: "LessWrong Post", buttonText: "lesswrong" },
-      { label: "Publish to All", buttonText: "publish" },
-    ];
-    for (const sc of slashCommands) {
+    for (const sc of SLASH_COMMANDS) {
       window.roamAlphaAPI.ui.slashCommand.addCommand({
         label: sc.label,
         callback: (context: { "block-uid": string }) => {
@@ -246,6 +350,8 @@ export default {
     // Clean up observers
     observers.forEach((o) => o.disconnect());
     observers.length = 0;
+    cleanupFns.forEach((cleanup) => cleanup());
+    cleanupFns.length = 0;
 
     // Clean up styles
     styleEl.forEach((s) => s.remove());
